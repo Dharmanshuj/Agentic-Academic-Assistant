@@ -8,7 +8,7 @@ load_dotenv()
 def create_vector_store(chunks):
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
-        google_api_key="AIzaSyCXI59XKDTY_ZmajdHfjG53KdTTNqgcE1I"
+        google_api_key=os.getenv("GEMINI_API_KEY")
     )
 
     store = FAISS.from_documents(
