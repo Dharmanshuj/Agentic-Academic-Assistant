@@ -1,11 +1,8 @@
-from ingestion.loader import load_documents
-from ingestion.chunker import chunk_documents
-from ingestion.embed_store import create_vector_store
+from fastapi import FastAPI
+from api.chat_routes import router
 
-docs = load_documents("documents/policies.pdf")
+app = FastAPI(
+    title="AI Payroll Chatbot"
+)
 
-chunks = chunk_documents(docs)
-
-create_vector_store(chunks)
-
-print("Vector database created successfully")
+app.include_router(router)
