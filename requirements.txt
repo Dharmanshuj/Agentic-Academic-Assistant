@@ -1,0 +1,35 @@
+fastapi
+uvicorn
+langchain
+langchain-google-genai
+langchain-community
+langgraph
+faiss-cpu
+pypdf
+python-dotenv
+# Web Framework
+fastapi
+uvicorn
+python-multipart
+
+# Agent & AI
+langchain
+langgraph
+langchain-openai  # Or Anthropic/Google
+pydantic
+
+# Tools & MCP
+mcp              # Model Context Protocol SDK
+pandas
+numpy           # For data manipulation
+sqlalchemy      # Database ORM
+
+# Vector DB & RAG
+qdrant-client
+sentence-transformers
+
+# Utilities
+python-dotenv
+loguru
+passlib[bcrypt]
+langchain-google-genai
