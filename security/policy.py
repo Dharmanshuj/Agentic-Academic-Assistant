@@ -8,12 +8,13 @@ SENSITIVE_FIELDS = [
 
 MASKED_FIELDS = [
     "email",
-    "phone"
+    "account_no"
 ]
 
 ALLOWED_COLUMNS = [
     "name",
     "department",
-    "role",
-    "location",
+    "designation",
+    "bank_name",
+    "account_no"
 ]
