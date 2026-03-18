@@ -9,8 +9,8 @@ from security.audit_logger import log_tool_usage, log_security_event
 
 
 @tool
-def get_employee_info(department: str):
-    """Query employees information and return sanitized JSON records."""
+def get_employee_info():
+    """Query employees and return sanitized JSON records."""
 
     # validate_query(department)
 
@@ -19,10 +19,10 @@ def get_employee_info(department: str):
 
     cursor.execute(
         """
-        SELECT name, dept, designation, account_no
+        SELECT name, dept, designation, bank_name, account_no
         FROM employees
-
         """,
+        ()
     )
 
     rows = cursor.fetchall()
@@ -35,13 +35,16 @@ def get_employee_info(department: str):
             "name": r[0],
             "department": r[1],
             "designation": r[2],
-            "account_no": r[3]
+            "bank_name": r[3],
+            "account_no": r[4]
         })
 
     records = filter_records(records)
 
     records = [apply_masking(r) for r in records]
 
-    #log_tool_usage("query_employee_department", department)
+    # log_tool_usage("query_employee")
+
+    conn.close()
 
     return str(records)
