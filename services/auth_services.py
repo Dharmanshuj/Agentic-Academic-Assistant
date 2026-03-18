@@ -12,7 +12,6 @@ def hash_password(password: str):
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-def create_access_token(emp_id: str, username: str):
+def create_access_token(empno: str, username: str):
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
-    return jwt.encode({"sub": username, "emp_id": emp_id, "exp": expire}, SECRET_KEY, algorithm="HS256")
-
+    return jwt.encode({"sub": username, "emp_id": empno, "exp": expire}, SECRET_KEY, algorithm="HS256")
