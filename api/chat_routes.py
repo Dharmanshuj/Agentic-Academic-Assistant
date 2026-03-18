@@ -1,3 +1,4 @@
+from database.db import get_connection
 from dotenv import load_dotenv
 load_dotenv()
 import uuid
