@@ -1,3 +1,4 @@
+from database.db import get_connection
 from dotenv import load_dotenv
 load_dotenv()
 import uuid
@@ -25,7 +26,7 @@ class RegisterRequest(UserCredentials):
     emp_id: str
 
 # --- Mock DB ---
-users_db = {}
+users_db = get_connection()
 
 # --- Endpoints ---
 @router.get("/debug-routes")
