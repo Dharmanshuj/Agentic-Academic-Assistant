@@ -1,9 +1,6 @@
 SENSITIVE_FIELDS = [
-    "salary",
-    "ssn",
-    "password",
-    "token",
-    "api_key"
+    "empno",
+    "hashed_password",
 ]
 
 MASKED_FIELDS = [
@@ -13,8 +10,20 @@ MASKED_FIELDS = [
 
 ALLOWED_COLUMNS = [
     "name",
-    "department",
+    "dept",
     "designation",
     "bank_name",
-    "account_no"
+    "account_no",
+    "basic_salary",
+    "hra",
+    "conveyance",
+    "medical",
+    "special",
+    "gross_salary",
+    "epf",
+    "health_insurance",
+    "professional_tax",
+    "total_deductions",
+    "tds",
+    "net_pay"
 ]
