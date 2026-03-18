@@ -1,10 +1,10 @@
-from .database_tool import query_employee_department
+from .database_tool import get_employee_info
 from .document_tool import search_documents
 
 
 def get_tools():
 
     return [
-        query_employee_department,
+        get_employee_info,
         search_documents
     ]
