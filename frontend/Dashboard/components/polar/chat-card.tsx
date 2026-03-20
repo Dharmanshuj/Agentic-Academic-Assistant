@@ -1,0 +1,191 @@
+"use client"
+
+import { useState, useRef, useEffect } from "react"
+import { SnowflakeIcon } from "@/components/icons/snowflake-icon"
+import { ChatInput } from "./chat-input"
+import { InputControls } from "./input-controls"
+import { SuggestionBadges } from "./suggestion-badges"
+
+interface ChatCardProps {
+  userName?: string
+  onBackgroundChange?: (imageUrl: string) => void
+  onResetBackground?: () => void
+}
+
+type Message = { role: "user" | "assistant"; content: string }
+
+export function ChatCard({ userName = "Juan", onBackgroundChange, onResetBackground }: ChatCardProps) {
+  const [inputValue, setInputValue] = useState("")
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  const handleSuggestionSelect = (suggestion: { id: string; label: string }) => {
+    handleSubmit(suggestion.label)
+  }
+
+  const handleSubmit = async (query: string) => {
+    if (!query.trim() || isLoading) return
+
+    // 1. Add user message
+    const newMessages: Message[] = [...messages, { role: "user", content: query }]
+    setMessages(newMessages)
+    setInputValue("")
+    setIsLoading(true)
+
+    // 2. Add empty assistant message placeholder
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+
+    try {
+      const token = localStorage.getItem("access_token")
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+      // 3. Trigger SSE Stream
+      const response = await fetch(`${apiUrl}/ask-me/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch response from AI")
+      }
+
+      // 4. Parse Server-Sent Events
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let done = false
+      let buffer = "" // Buffer to hold incomplete chunks
+
+      while (!done) {
+        if (!reader) break
+        const { value, done: doneReading } = await reader.read()
+        done = doneReading
+        if (value) {
+          buffer += decoder.decode(value, { stream: true })
+          
+          let newlineIndex
+          // SSE messages end with \n\n. Process fully received messages.
+          while ((newlineIndex = buffer.indexOf("\n\n")) >= 0) {
+            const message = buffer.slice(0, newlineIndex)
+            buffer = buffer.slice(newlineIndex + 2)
+            
+            if (message.startsWith("data: ")) {
+              const dataStr = message.replace("data: ", "")
+              try {
+                const parsed = JSON.parse(dataStr)
+                const text = parsed.text || ""
+                
+                // Append text to the last assistant message
+                setMessages((prev) => {
+                  const newMsgs = [...prev]
+                  const lastMsg = { ...newMsgs[newMsgs.length - 1] } // Clone the object
+                  if (lastMsg.role === "assistant") {
+                    lastMsg.content += text
+                  }
+                  newMsgs[newMsgs.length - 1] = lastMsg
+                  return newMsgs
+                })
+              } catch (e) {
+                // If it's old non-JSON data holding over in the stream or cache, parse raw optionally
+                console.error("SSE JSON parse error:", e)
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Chat error:", error)
+      setMessages((prev) => {
+        const newMsgs = [...prev]
+        const lastMsg = newMsgs[newMsgs.length - 1]
+        if (lastMsg.role === "assistant" && !lastMsg.content) {
+          lastMsg.content = "Sorry, I encountered an error connecting to the server."
+        }
+        return newMsgs
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md transition-all duration-300">
+      <div className="flex flex-col gap-6 items-start w-full">
+        {/* Header - Only show if no messages */}
+        {messages.length === 0 && (
+          <div className="flex flex-col gap-2 items-start w-full">
+            <div className="flex items-center gap-2">
+              <SnowflakeIcon className="h-5 w-5 text-sky-400" />
+              <p className="text-sm text-white/80">Hello {userName}!</p>
+            </div>
+            <h1 className="text-2xl font-semibold text-white">What can I help you today?</h1>
+          </div>
+        )}
+
+        {/* Chat Messages */}
+        {messages.length > 0 && (
+          <div className="flex w-full flex-col gap-4 max-h-[50vh] overflow-y-auto pr-2 pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex flex-col w-full ${m.role === "user" ? "items-end" : "items-start"}`}>
+                {m.role === "assistant" && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <SnowflakeIcon className="h-4 w-4 text-sky-400" />
+                    <span className="text-xs text-white/60">Pulse AI</span>
+                  </div>
+                )}
+                <div
+                  className={`px-4 py-2.5 rounded-2xl max-w-[85%] whitespace-pre-wrap ${
+                    m.role === "user"
+                      ? "bg-sky-500 text-white rounded-br-sm"
+                      : "bg-white/15 text-white/90 rounded-bl-sm border border-white/10"
+                  }`}
+                >
+                  {m.content || (m.role === "assistant" && isLoading ? (
+                    <span className="flex gap-1 items-center h-5">
+                      <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" />
+                      <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </span>
+                  ) : null)}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+
+        {/* Input section */}
+        <div className="flex w-full flex-col gap-1">
+          <ChatInput
+            placeholder="Ask me anything..."
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={handleSubmit}
+          />
+          <InputControls onBackgroundChange={onBackgroundChange} onResetBackground={onResetBackground} />
+        </div>
+
+        {/* Suggestions - Only show if no messages */}
+        {messages.length === 0 && (
+          <SuggestionBadges suggestions={DEFAULT_SUGGESTIONS} onSelect={handleSuggestionSelect} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+const DEFAULT_SUGGESTIONS = [
+  { id: "1", label: "What is my salary?" },
+  { id: "2", label: "Show my last payslip" },
+  { id: "3", label: "How much tax was deducted?" },
+  { id: "4", label: "Breakdown of allowances" },
+]

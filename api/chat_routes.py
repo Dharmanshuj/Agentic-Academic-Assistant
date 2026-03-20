@@ -128,6 +128,8 @@ async def ask_payroll_stream(
     request: QueryRequest, 
     user: dict = Depends(get_current_user)
 ):
+    import json
+    
     # if request.employee_id != user.get("empno"):
     #     raise HTTPException(status_code=403, detail="Unauthorized access to this employee ID")
 
@@ -135,6 +137,7 @@ async def ask_payroll_stream(
     
     async def stream_generator():
         async for chunk in run_salary_agent(request.query, user.get("emp_id"), session_id):
-            yield f"data: {chunk}\n\n"
+            payload = json.dumps({"text": chunk})
+            yield f"data: {payload}\n\n"
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
