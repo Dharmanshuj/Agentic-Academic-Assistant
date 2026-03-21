@@ -1,8 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
+
+// Simple frontend-only JWT parser to read token payloads
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1]
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/")
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    )
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    return null
+  }
+}
 // import { BrandBadge } from "@/components/polar/brand-badge"
 import { ChatCard } from "@/components/polar/chat-card"
 import { FooterLinks } from "@/components/polar/footer-links"
@@ -12,6 +29,18 @@ const DEFAULT_BACKGROUND = "/images/background.png"
 export default function PolarLandingPage() {
   const router = useRouter()
   const [backgroundImage, setBackgroundImage] = useState(DEFAULT_BACKGROUND)
+  const [userName, setUserName] = useState("Employee")
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token")
+    if (token) {
+      // Decode the token and extract the name (which FastAPI stored in the 'sub' variable)
+      const decoded = parseJwt(token)
+      if (decoded?.sub) {
+        setUserName(decoded.sub)
+      }
+    }
+  }, [])
 
   const handleResetBackground = () => {
     setBackgroundImage(DEFAULT_BACKGROUND)
@@ -47,7 +76,7 @@ export default function PolarLandingPage() {
       </div>
 
       <div className="relative z-10 flex w-full flex-col items-center">
-        <ChatCard userName="Juan" onBackgroundChange={setBackgroundImage} onResetBackground={handleResetBackground} />
+        <ChatCard userName={userName} onBackgroundChange={setBackgroundImage} onResetBackground={handleResetBackground} />
       </div>
 
       <div className="relative z-10 pb-4">

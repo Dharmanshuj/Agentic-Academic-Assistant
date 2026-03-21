@@ -90,7 +90,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     users_db = conn.cursor()
 
     users_db.execute(
-        "SELECT empno, hashed_password FROM employees WHERE empno = %s",
+        "SELECT empno, name, hashed_password FROM employees WHERE empno = %s",
         (credentials.username,)
     )
 
@@ -100,7 +100,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid employee ID")
 
-    empno, hashed_password_db = user
+    empno, name, hashed_password_db = user
 
     if not hashed_password_db:
         raise HTTPException(status_code=400, detail="User not registered")
@@ -108,7 +108,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     if not verify_password(credentials.password, hashed_password_db):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token(empno, empno)
+    token = create_access_token(empno, name)
 
     return {"access_token": token, "token_type": "bearer"}
 
