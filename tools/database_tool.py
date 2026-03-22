@@ -8,46 +8,46 @@ from security.masking import apply_masking
 from security.audit_logger import log_tool_usage, log_security_event
 
 
-@tool
-def get_employee_info():
-    """Query employees and return sanitized JSON records."""
+# @tool
+# def get_employee_info():
+#     """Query employees and return sanitized JSON records."""
 
-    # validate_query(department)
+#     # validate_query(department)
 
-    conn = get_connection()
-    cursor = conn.cursor()
+#     conn = get_connection()
+#     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT name, dept, designation, bank_name, account_no
-        FROM employees
-        """,
-        ()
-    )
+#     cursor.execute(
+#         """
+#         SELECT name, dept, designation, bank_name, account_no
+#         FROM employees
+#         """,
+#         ()
+#     )
 
-    rows = cursor.fetchall()
+#     rows = cursor.fetchall()
 
-    records = []
+#     records = []
 
-    for r in rows:
+#     for r in rows:
 
-        records.append({
-            "name": r[0],
-            "department": r[1],
-            "designation": r[2],
-            "bank_name": r[3],
-            "account_no": r[4]
-        })
+#         records.append({
+#             "name": r[0],
+#             "department": r[1],
+#             "designation": r[2],
+#             "bank_name": r[3],
+#             "account_no": r[4]
+#         })
 
-    records = filter_records(records)
+#     records = filter_records(records)
 
-    records = [apply_masking(r) for r in records]
+#     records = [apply_masking(r) for r in records]
 
-    # log_tool_usage("query_employee")
+#     # log_tool_usage("query_employee")
 
-    conn.close()
+#     conn.close()
 
-    return str(records)
+#     return str(records)
 
 @tool
 def get_employee_by_id(emp_id: str):
@@ -102,3 +102,17 @@ def get_employee_by_id(emp_id: str):
     conn.close()
 
     return record
+
+@tool
+def get_all_employees_data():
+    """Query data for all employees. ONLY allowed for ADMIN user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT empno, name, dept, designation, net_pay
+        FROM employees
+    """)
+    rows = cursor.fetchall()
+    records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
+    conn.close()
+    return records

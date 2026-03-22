@@ -86,6 +86,11 @@ def get_routes():
 @router.post("/login")
 # Change the argument to use OAuth2PasswordRequestForm
 async def login(credentials: OAuth2PasswordRequestForm = Depends()):
+    # Hardcoded ADMIN login
+    if credentials.username == "ADMIN" and credentials.password == "admin123":
+        token = create_access_token("ADMIN", "System Administrator")
+        return {"access_token": token, "token_type": "bearer"}
+
     conn = get_connection()
     users_db = conn.cursor()
 

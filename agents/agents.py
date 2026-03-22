@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, END
 
 # Import your tools and calculator
 from tools.document_tool import search_documents
-from tools.database_tool import get_employee_by_id, get_employee_info
+from tools.database_tool import get_employee_by_id, get_all_employees_data
 from calculation.calculator import calculate_prorated_salary
 
 # Initialize LLM with REST transport to avoid DNS/GRPC issues
@@ -44,6 +44,15 @@ class AgentState(TypedDict):
     #     return {"next_node": "out_of_scope"}
 
 async def supervisor(state: AgentState):
+    query = state["query"].lower()
+    
+    # Automatically route all ADMIN queries to the dedicated admin interface
+    if state["emp_id"] == "ADMIN":
+        return {"next_node": "admin_node"}
+        
+    if "all employee" in query or "everyone" in query:
+        return {"next_node": "admin_node"}
+        
     return {"next_node": "payroll_node"}
 
 
@@ -69,7 +78,7 @@ async def payroll_logic(state: AgentState):
         "emp_id": state["emp_id"]
     })
 
-    if not record:
+    if not record or isinstance(record, str):
         return {"final_answer": "I couldn't find your employee information. Please contact HR."}
 
     employee_data = "\n".join([f"{k}: {v}" for k, v in record.items()])
@@ -129,6 +138,29 @@ Instructions:
     #     )
     # }
 
+async def admin_logic(state: AgentState):
+    if state["emp_id"] != "ADMIN":
+        return {"final_answer": "Unauthorized Access. Only the ADMIN can query data for all employees."}
+    
+    records = await get_all_employees_data.ainvoke({})
+    
+    admin_data = "\n".join([str(r) for r in records])
+    prompt = f"""
+You are an HR Admin Assistant.
+
+Here is the data for ALL employees:
+{admin_data}
+
+Admin question:
+{state['query']}
+
+Instructions:
+- Summarize or answer based on the dataset above.
+- Be concise.
+"""
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    return {"final_answer": response.content}
+
 # async def policy_logic(state: AgentState):
 #     return {"final_answer": "Our policy states that prorated salary is calculated based on total calendar days in the month."}
 
@@ -141,11 +173,20 @@ def create_graph():
 
     workflow.add_node("supervisor", supervisor)
     workflow.add_node("payroll_node", payroll_logic)
+    workflow.add_node("admin_node", admin_logic)
 
     workflow.set_entry_point("supervisor")
 
-    workflow.add_edge("supervisor", "payroll_node")
+    workflow.add_conditional_edges(
+        "supervisor",
+        lambda state: state["next_node"],
+        {
+            "payroll_node": "payroll_node",
+            "admin_node": "admin_node"
+        }
+    )
     workflow.add_edge("payroll_node", END)
+    workflow.add_edge("admin_node", END)
 
     return workflow.compile()
 # def create_graph():
