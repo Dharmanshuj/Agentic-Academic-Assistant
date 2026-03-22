@@ -102,3 +102,62 @@ def get_employee_by_id(emp_id: str):
     conn.close()
 
     return record
+
+@tool
+def get_attendance(emp_id: str, month: int, year: int):
+    """
+    Get attendance for employee for a specific month.
+    Use this when user asks about presence, absence, or working days.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, total_days, present_days, absent_days
+        FROM attendance
+        WHERE empno = %s AND month = %s AND year = %s
+        """,
+        (emp_id, month, year)
+    )
+
+    r = cursor.fetchone()
+
+    conn.close()
+
+    if not r:
+        return None
+
+    return {
+        "attendance_id": r[0],
+        "total_days": r[1],
+        "present_days": r[2],
+        "absent_days": r[3]
+    }
+    
+@tool
+def get_salary_payment(attendance_id: int):
+    """
+    Fetch final in-hand salary based on attendance ID.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT inhand_net_pay
+        FROM salary_payments
+        WHERE attendance_id = %s
+        """,
+        (attendance_id,)
+    )
+
+    r = cursor.fetchone()
+    conn.close()
+
+    if not r:
+        return None
+
+    return {
+        "final_salary": r[0]
+    }

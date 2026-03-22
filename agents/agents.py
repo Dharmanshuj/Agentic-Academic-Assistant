@@ -6,7 +6,12 @@ from langgraph.graph import StateGraph, END
 
 # Import your tools and calculator
 from tools.document_tool import search_documents
-from tools.database_tool import get_employee_by_id, get_employee_info
+import re
+from tools.database_tool import (
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment
+)
 from calculation.calculator import calculate_prorated_salary
 
 # Initialize LLM with REST transport to avoid DNS/GRPC issues
@@ -64,90 +69,123 @@ async def supervisor(state: AgentState):
 #     )
     
 #     return {"final_answer": f"Your calculated salary is {result['amount']} (Formula: {result['formula']})."}
+
+
+# async def payroll_logic(state: AgentState):
+#     record = await get_employee_by_id.ainvoke({
+#         "emp_id": state["emp_id"]
+#     })
+
+#     if not record:
+#         return {"final_answer": "I couldn't find your employee information. Please contact HR."}
+
+#     employee_data = "\n".join([f"{k}: {v}" for k, v in record.items()])
+
+#     prompt = f"""
+# You are an intelligent HR and Payroll assistant.
+
+# Here is the employee's salary data:
+# {employee_data}
+
+# User question:
+# {state['query']}
+
+# Instructions:
+# - Answer ONLY based on the given data
+# - If user asks meaning (like EPF, TDS), explain clearly
+# - If user asks salary → give correct numbers
+# - Be concise and professional
+# """
+
+#     response = await llm.ainvoke([HumanMessage(content=prompt)])
+
+#     return {"final_answer": response.content}
+
+
+import re
+from tools.database_tool import (
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment
+)
+
 async def payroll_logic(state: AgentState):
-    record = await get_employee_by_id.ainvoke({
+
+    # Step 1: Employee
+    employee = await get_employee_by_id.ainvoke({
         "emp_id": state["emp_id"]
     })
 
-    if not record:
+    if not employee:
         return {"final_answer": "I couldn't find your employee information. Please contact HR."}
 
-    employee_data = "\n".join([f"{k}: {v}" for k, v in record.items()])
+    # Step 2: Extract month/year from query
+    query = state["query"].lower()
 
+    month_map = {
+        "january": 1, "february": 2, "march": 3,
+        "april": 4, "may": 5, "june": 6,
+        "july": 7, "august": 8, "september": 9,
+        "october": 10, "november": 11, "december": 12
+    }
+
+    month = None
+    for m, num in month_map.items():
+        if m in query:
+            month = num
+
+    year = 2026  # demo default
+
+    attendance = None
+    salary = None
+
+    if month:
+        attendance = await get_attendance.ainvoke({
+            "emp_id": state["emp_id"],
+            "month": month,
+            "year": year
+        })
+
+        if attendance:
+            salary = await get_salary_payment.ainvoke({
+                "attendance_id": attendance["attendance_id"]
+            })
+# --- Step 4: Format Data (MINIMAL CHANGE from your original logic) ---
+    def format_data(data: dict, title: str):
+        if not data:
+            return f"{title}: Not available"
+        return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
+
+    employee_data = format_data(employee, "Employee Data")
+    attendance_data = format_data(attendance, "Attendance Data")
+    salary_data = format_data(salary, "Salary Data")
+    # Step 3: Build context for LLM
     prompt = f"""
 You are an intelligent HR and Payroll assistant.
 
 Here is the employee's salary data:
 {employee_data}
 
+{attendance_data}
+
+{salary_data}
+
 User question:
 {state['query']}
 
 Instructions:
 - Answer ONLY based on the given data
+- If user asks attendance → use attendance data
 - If user asks meaning (like EPF, TDS), explain clearly
-- If user asks salary → give correct numbers
+- If user asks salary → use salary data→ give correct numbers
+- If explaining deductions → combine attendance + salary
 - Be concise and professional
 """
 
     response = await llm.ainvoke([HumanMessage(content=prompt)])
 
     return {"final_answer": response.content}
-    # Extract values
-    # basic = record["basic_salary"]
-    # hra = record["hra"]
-    # conveyance = record["conveyance"]
-    # medical = record["medical"]
-    # special = record["special"]
 
-    # gross = record["gross_salary"]
-
-    # epf = record["epf"]
-    # insurance = record["health_insurance"]
-    # tax = record["professional_tax"]
-    # tds = record["tds"]
-
-    # deductions = record["total_deductions"]
-    # net = record["net_pay"]
-
-    # return {
-    #     "final_answer": (
-    #         f"💼 Salary Breakdown:\n"
-    #         f"Basic: ₹{basic}\n"
-    #         f"HRA: ₹{hra}\n"
-    #         f"Conveyance: ₹{conveyance}\n"
-    #         f"Medical: ₹{medical}\n"
-    #         f"Special Allowance: ₹{special}\n\n"
-    #         f"📈 Gross Salary: ₹{gross}\n\n"
-    #         f"📉 Deductions:\n"
-    #         f"EPF: ₹{epf}\n"
-    #         f"Health Insurance: ₹{insurance}\n"
-    #         f"Professional Tax: ₹{tax}\n"
-    #         f"TDS: ₹{tds}\n"
-    #         f"Total Deductions: ₹{deductions}\n\n"
-    #         f"💰 Net Pay: ₹{net}"
-    #     )
-    # }
-
-# async def policy_logic(state: AgentState):
-#     return {"final_answer": "Our policy states that prorated salary is calculated based on total calendar days in the month."}
-
-# async def out_of_scope_logic(state: AgentState):
-#     return {"final_answer": "I'm sorry, I am specifically trained to help with HR and Payroll questions. I can't assist with that request."}
-
-# --- Graph Construction ---
-def create_graph():
-    workflow = StateGraph(AgentState)
-
-    workflow.add_node("supervisor", supervisor)
-    workflow.add_node("payroll_node", payroll_logic)
-
-    workflow.set_entry_point("supervisor")
-
-    workflow.add_edge("supervisor", "payroll_node")
-    workflow.add_edge("payroll_node", END)
-
-    return workflow.compile()
 # def create_graph():
 #     workflow = StateGraph(AgentState)
     
@@ -181,6 +219,20 @@ def create_graph():
 #     return workflow.compile()
 
 # --- Execution Entry Point ---
+
+# --- Graph Construction ---
+def create_graph():
+    workflow = StateGraph(AgentState)
+
+    workflow.add_node("supervisor", supervisor)
+    workflow.add_node("payroll_node", payroll_logic)
+
+    workflow.set_entry_point("supervisor")
+
+    workflow.add_edge("supervisor", "payroll_node")
+    workflow.add_edge("payroll_node", END)
+
+    return workflow.compile()
 
 async def run_salary_agent(query: str, emp_id: str, session_id: str):
     graph = create_graph()
