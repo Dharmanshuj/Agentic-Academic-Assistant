@@ -341,6 +341,8 @@ def create_graph():
     workflow.add_node("payroll_node", payroll_logic)
 
     workflow.add_node("admin_node", admin_logic)
+    
+    workflow.add_node("policy_node", policy_logic)
  
     workflow.set_entry_point("supervisor")
  
@@ -354,7 +356,8 @@ def create_graph():
 
             "payroll_node": "payroll_node",
 
-            "admin_node": "admin_node"
+            "admin_node": "admin_node",
+            "policy_node": "policy_node"
 
         }
 
