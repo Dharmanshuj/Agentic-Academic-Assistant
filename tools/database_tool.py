@@ -7,6 +7,19 @@ from security.filter import filter_records
 from security.masking import apply_masking
 from security.audit_logger import log_tool_usage, log_security_event
 
+@tool
+def get_all_employees_data():
+    """Query data for all employees. ONLY allowed for ADMIN user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT empno, name, dept, designation, net_pay
+        FROM employees
+    """)
+    rows = cursor.fetchall()
+    records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
+    conn.close()
+    return records
 
 @tool
 def get_employee_by_id(emp_id: str):
@@ -63,15 +76,60 @@ def get_employee_by_id(emp_id: str):
     return record
 
 @tool
-def get_all_employees_data():
-    """Query data for all employees. ONLY allowed for ADMIN user."""
+def get_attendance(emp_id: str, month: int, year: int):
+    """
+    Get attendance for employee for a specific month.
+    Use this when user asks about presence, absence, or working days.
+    """
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT empno, name, dept, designation, net_pay
-        FROM employees
-    """)
-    rows = cursor.fetchall()
-    records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
+
+    cursor.execute(
+        """
+        SELECT id, total_days, present_days, absent_days
+        FROM attendance
+        WHERE empno = %s AND month = %s AND year = %s
+        """,
+        (emp_id, month, year)
+    )
+
+    r = cursor.fetchone()
+
     conn.close()
-    return records
+
+    if not r:
+        return None
+
+    return {
+        "attendance_id": r[0],
+        "total_days": r[1],
+        "present_days": r[2],
+        "absent_days": r[3]
+    }
+    
+@tool
+def get_salary_payment(attendance_id: int):
+    """
+    Fetch final in-hand salary based on attendance ID.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT inhand_net_pay
+        FROM salary_payments
+        WHERE attendance_id = %s
+        """,
+        (attendance_id,)
+    )
+
+    r = cursor.fetchone()
+    conn.close()
+
+    if not r:
+        return None
+
+    return {
+        "final_salary": r[0]
+    }
