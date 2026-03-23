@@ -4,7 +4,9 @@ import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] })
+const plusJakartaSans = {
+  className: 'font-sans'
+}
 
 export const metadata: Metadata = {
   title: "Pulse AI - AI Powered Chatbot",
