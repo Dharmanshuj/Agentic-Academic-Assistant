@@ -12,7 +12,8 @@ from tools.database_tool import (
     get_attendance,
     get_salary_payment,
     get_all_employees_data,
-    admin_get_monthly_metrics
+    admin_get_monthly_metrics,
+    get_all_attendance_for_employee
 )
 from calculation.calculator import calculate_prorated_salary
 
@@ -101,7 +102,8 @@ async def payroll_logic(state: AgentState):
 Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
 If no month is explicitly or implicitly mentioned, set "month" to null.
 If no year is mentioned, set "year" to 2026.
-Example valid output: {{"month": 2, "year": 2026}}
+If the user asks for all attendance or history, set "all" to true, otherwise false.
+Example valid output: {{"month": 2, "year": 2026, "all": false}}
 here 1 is jan, 2 is feb, 3 is mar, 4 is apr, 5 is may, 6 is jun, 7 is jul, 8 is aug, 9 is sep, 10 is oct, 11 is nov, 12 is dec
 
 Query: '{query}'
@@ -112,27 +114,45 @@ Query: '{query}'
         extracted = json.loads(raw_json)
         month = extracted.get("month")
         year = extracted.get("year", 2026)
+        all_records = extracted.get("all", False)
     except Exception:
         month = None
         year = 2026
+        all_records = False
 
-    # Retrieve either the exact month or the absolute latest record found
-    attendance = await get_attendance.ainvoke({
-        "emp_id": state["emp_id"],
-        "month": month,
-        "year": year
-    })
-    
-    salary = None
-    if attendance:
-        salary = await get_salary_payment.ainvoke({
-            "attendance_id": attendance["attendance_id"]
+    # Retrieve attendance data
+    if all_records:
+        attendance_records = await get_all_attendance_for_employee.ainvoke({
+            "emp_id": state["emp_id"]
         })
+        attendance = attendance_records  # list of records
+        salary = None  # For all records, we might not fetch salary for each
+    else:
+        # Retrieve either the exact month or the absolute latest record found
+        attendance = await get_attendance.ainvoke({
+            "emp_id": state["emp_id"],
+            "month": month,
+            "year": year
+        })
+        
+        salary = None
+        if attendance:
+            salary = await get_salary_payment.ainvoke({
+                "attendance_id": attendance["attendance_id"]
+            })
 # --- Step 4: Format Data (MINIMAL CHANGE from your original logic) ---
-    def format_data(data: dict, title: str):
+    def format_data(data, title: str):
         if not data:
             return f"{title}: Not available"
-        return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
+        if isinstance(data, list):
+            # For list of records
+            formatted = f"{title}:\n"
+            for i, record in enumerate(data, 1):
+                formatted += f"Record {i}:\n" + "\n".join([f"  {k}: {v}" for k, v in record.items()]) + "\n"
+            return formatted
+        else:
+            # For single dict
+            return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
 
     employee_data = format_data(employee, "Employee Data")
     attendance_data = format_data(attendance, "Attendance Data")
@@ -154,6 +174,7 @@ User question:
 Instructions:
 - Answer ONLY based on the given data
 - If user asks attendance → use attendance data
+- If user asks for all attendance/history, summarize the records showing months, years, present days, etc.
 - If user asks meaning (like EPF, TDS), explain clearly
 - If user asks salary → use salary data→ give correct numbers
 - If explaining deductions → combine attendance + salary
