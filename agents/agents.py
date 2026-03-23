@@ -11,7 +11,8 @@ from tools.database_tool import (
     get_employee_by_id,
     get_attendance,
     get_salary_payment,
-    get_all_employees_data
+    get_all_employees_data,
+    admin_get_monthly_metrics
 )
 from calculation.calculator import calculate_prorated_salary
 
@@ -93,34 +94,40 @@ async def payroll_logic(state: AgentState):
     # Step 2: Extract month/year from query
     query = state["query"].lower()
 
-    month_map = {
-        "january": 1, "february": 2, "march": 3,
-        "april": 4, "may": 5, "june": 6,
-        "july": 7, "august": 8, "september": 9,
-        "october": 10, "november": 11, "december": 12
-    }
+    import json
+    
+    # 2. Intelligently extract the exact month/year the user is asking about
+    date_prompt = f"""Extract the target month and year from this query.
+Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
+If no month is explicitly or implicitly mentioned, set "month" to null.
+If no year is mentioned, set "year" to 2026.
+Example valid output: {{"month": 2, "year": 2026}}
+here 1 is jan, 2 is feb, 3 is mar, 4 is apr, 5 is may, 6 is jun, 7 is jul, 8 is aug, 9 is sep, 10 is oct, 11 is nov, 12 is dec
 
-    month = None
-    for m, num in month_map.items():
-        if m in query:
-            month = num
+Query: '{query}'
+"""
+    try:
+        date_res = await llm.ainvoke([HumanMessage(content=date_prompt)])
+        raw_json = date_res.content.strip().replace("```json", "").replace("```", "")
+        extracted = json.loads(raw_json)
+        month = extracted.get("month")
+        year = extracted.get("year", 2026)
+    except Exception:
+        month = None
+        year = 2026
 
-    year = 2026  # demo default
-
-    attendance = None
+    # Retrieve either the exact month or the absolute latest record found
+    attendance = await get_attendance.ainvoke({
+        "emp_id": state["emp_id"],
+        "month": month,
+        "year": year
+    })
+    
     salary = None
-
-    if month:
-        attendance = await get_attendance.ainvoke({
-            "emp_id": state["emp_id"],
-            "month": month,
-            "year": year
+    if attendance:
+        salary = await get_salary_payment.ainvoke({
+            "attendance_id": attendance["attendance_id"]
         })
-
-        if attendance:
-            salary = await get_salary_payment.ainvoke({
-                "attendance_id": attendance["attendance_id"]
-            })
 # --- Step 4: Format Data (MINIMAL CHANGE from your original logic) ---
     def format_data(data: dict, title: str):
         if not data:
@@ -196,9 +203,33 @@ async def admin_logic(state: AgentState):
     if state["emp_id"] != "ADMIN":
         return {"final_answer": "Unauthorized Access. Only the ADMIN can query data for all employees."}
     
-    records = await get_all_employees_data.ainvoke({})
+    import json
+    date_prompt = f"""Extract the target month and year from this admin query.
+Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
+If no month is explicitly or implicitly mentioned, set "month" to null.
+If no year is mentioned, set "year" to 2026.
+Example valid output: {{"month": 2, "year": 2026}}
+
+Query: '{state['query']}'
+"""
+    try:
+        date_res = await llm.ainvoke([HumanMessage(content=date_prompt)])
+        raw_json = date_res.content.strip().replace("```json", "").replace("```", "")
+        extracted = json.loads(raw_json)
+        month = extracted.get("month")
+        year = extracted.get("year", 2026)
+    except Exception:
+        month = None
+        year = 2026
+
+    base_records = await get_all_employees_data.ainvoke({})
+    metrics = await admin_get_monthly_metrics.ainvoke({"month": month, "year": year})
     
-    admin_data = "\n".join([str(r) for r in records])
+    admin_data = "--- BASE EMPLOYEE DATA ---\n"
+    admin_data += "\n".join([str(r) for r in base_records])
+    admin_data += f"\n\n--- MONTHLY ATTENDANCE & SALARY DATA (Month: {month}, Year: {year}) ---\n"
+    admin_data += "\n".join([str(r) for r in metrics])
+
     prompt = f"""
 You are an HR Admin Assistant.
 
