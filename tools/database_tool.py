@@ -23,7 +23,7 @@ def get_all_employees_data():
 
 
 @tool
-def admin_get_monthly_metrics(month: int = None, year: int = None):
+def admin_get_monthly_metrics(month: int | None = None, year: int | None = None):
     """Admin tool to get attendance and salary payments for all employees across a given month."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -116,7 +116,7 @@ def get_employee_by_id(emp_id: str):
     return record
 
 @tool
-def get_attendance(emp_id: str, month: int = None, year: int = None):
+def get_attendance(emp_id: str, month: int | None = None, year: int | None = None):
     """
     Get attendance for employee for a specific month or year.
     """

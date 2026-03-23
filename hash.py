@@ -12,7 +12,7 @@ for empno, plain_pw in rows:
         hashed = hash_password(plain_pw)
 
         cursor.execute(
-            "UPDATE employees SET hash_password = %s WHERE empno = %s",
+            "UPDATE employees SET hashed_password = %s WHERE empno = %s",
             (hashed, empno)
         )
 

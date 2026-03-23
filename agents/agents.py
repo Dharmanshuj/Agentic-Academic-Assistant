@@ -106,6 +106,9 @@ If the user asks for all attendance or history, set "all" to true, otherwise fal
 Example valid output: {{"month": 2, "year": 2026, "all": false}}
 here 1 is jan, 2 is feb, 3 is mar, 4 is apr, 5 is may, 6 is jun, 7 is jul, 8 is aug, 9 is sep, 10 is oct, 11 is nov, 12 is dec
 
+Perform the exact payroll calculation. 
+    Logic: Base * (Present / Total)
+    amount = base_salary * (present_days / total_days)
 Query: '{query}'
 """
     try:
