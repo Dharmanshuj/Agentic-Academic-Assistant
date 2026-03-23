@@ -247,6 +247,7 @@ def create_graph():
     workflow.add_node("supervisor", supervisor)
     workflow.add_node("payroll_node", payroll_logic)
     workflow.add_node("admin_node", admin_logic)
+    workflow.add_node("policy_node", policy_logic)
 
     workflow.set_entry_point("supervisor")
 
@@ -263,107 +264,6 @@ def create_graph():
     workflow.add_edge("admin_node", END)
     workflow.add_edge("policy_node", END)
 
-    return workflow.compile()
-# def create_graph():
-#     workflow = StateGraph(AgentState)
-    
-#     # Add all nodes
-#     workflow.add_node("supervisor", supervisor)
-#     workflow.add_node("greeting_node", greeting_logic)
-#     workflow.add_node("payroll_node", payroll_logic)
-#     workflow.add_node("policy_node", policy_logic)
-#     workflow.add_node("out_of_scope", out_of_scope_logic)
-    
-#     workflow.set_entry_point("supervisor")
-    
-#     # Define routing
-#     workflow.add_conditional_edges(
-#         "supervisor",
-#         lambda state: state["next_node"],
-#         {
-#             "greeting_node": "greeting_node",
-#             "payroll_node": "payroll_node",
-#             "policy_node": "policy_node",
-#             "out_of_scope": "out_of_scope"
-#         }
-#     )
-    
-#     # All nodes lead to the end
-#     workflow.add_edge("greeting_node", END)
-#     workflow.add_edge("payroll_node", END)
-#     workflow.add_edge("policy_node", END)
-#     workflow.add_edge("out_of_scope", END)
-    
-#     return workflow.compile()
-
-async def admin_logic(state: AgentState):
-
-    if state["emp_id"] != "ADMIN":
-
-        return {"final_answer": "Unauthorized Access. Only the ADMIN can query data for all employees."}
- 
-    records = await get_all_employees_data.ainvoke({})
- 
-    admin_data = "\n".join([str(r) for r in records])
-
-    prompt = f"""
-
-You are an HR Admin Assistant.
- 
-Here is the data for ALL employees:
-
-{admin_data}
-
-Admin question:
-
-{state['query']}
-
-Instructions:
-
-- Summarize or answer based on the dataset above.
-
-- Be concise.
-
-"""
-
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
-
-    return {"final_answer": response. Content}
- 
-
-# --- Graph Construction ---
-def create_graph():
-
-    workflow = StateGraph(AgentState)
- 
-    workflow.add_node("supervisor", supervisor)
-
-    workflow.add_node("payroll_node", payroll_logic)
-
-    workflow.add_node("admin_node", admin_logic)
- 
-    workflow.set_entry_point("supervisor")
- 
-    workflow.add_conditional_edges(
-
-        "supervisor",
-
-        lambda state: state["next_node"],
-
-        {
-
-            "payroll_node": "payroll_node",
-
-            "admin_node": "admin_node"
-
-        }
-
-    )
-
-    workflow.add_edge("payroll_node", END)
-
-    workflow.add_edge("admin_node", END)
- 
     return workflow.compile()
  
 async def run_salary_agent(query: str, emp_id: str, session_id: str):
