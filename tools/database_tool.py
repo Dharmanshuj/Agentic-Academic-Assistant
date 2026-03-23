@@ -185,3 +185,40 @@ def get_salary_payment(attendance_id: int):
     return {
         "final_salary": r[0]
     }
+
+@tool
+def get_all_attendance_for_employee(emp_id: str):
+    """
+    Get all attendance records for an employee across all months and years.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, total_days, present_days, absent_days, month, year
+        FROM attendance
+        WHERE empno = %s
+        ORDER BY year DESC, month DESC
+        """,
+        (emp_id,)
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        return []
+
+    records = []
+    for r in rows:
+        records.append({
+            "attendance_id": r[0],
+            "total_days": r[1],
+            "present_days": r[2],
+            "absent_days": r[3],
+            "month": r[4],
+            "year": r[5]
+        })
+
+    return records

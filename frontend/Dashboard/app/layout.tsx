@@ -5,7 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
 const plusJakartaSans = {
-  className: "font-sans"
+  className: 'font-sans'
 }
 
 export const metadata: Metadata = {
