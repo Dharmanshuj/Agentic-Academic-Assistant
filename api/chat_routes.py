@@ -86,11 +86,16 @@ def get_routes():
 @router.post("/login")
 # Change the argument to use OAuth2PasswordRequestForm
 async def login(credentials: OAuth2PasswordRequestForm = Depends()):
+    # Hardcoded ADMIN login
+    if credentials.username == "ADMIN" and credentials.password == "admin123":
+        token = create_access_token("ADMIN", "System Administrator")
+        return {"access_token": token, "token_type": "bearer"}
+
     conn = get_connection()
     users_db = conn.cursor()
 
     users_db.execute(
-        "SELECT empno, hashed_password FROM employees WHERE empno = %s",
+        "SELECT empno, name, hashed_password FROM employees WHERE empno = %s",
         (credentials.username,)
     )
 
@@ -100,7 +105,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid employee ID")
 
-    empno, hashed_password_db = user
+    empno, name, hashed_password_db = user
 
     if not hashed_password_db:
         raise HTTPException(status_code=400, detail="User not registered")
@@ -108,7 +113,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     if not verify_password(credentials.password, hashed_password_db):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token(empno, empno)
+    token = create_access_token(empno, name)
 
     return {"access_token": token, "token_type": "bearer"}
 

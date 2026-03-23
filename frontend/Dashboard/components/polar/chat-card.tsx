@@ -14,7 +14,7 @@ interface ChatCardProps {
 
 type Message = { role: "user" | "assistant"; content: string }
 
-export function ChatCard({ userName = "Juan", onBackgroundChange, onResetBackground }: ChatCardProps) {
+export function ChatCard({ userName, onBackgroundChange, onResetBackground }: ChatCardProps) {
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -71,19 +71,19 @@ export function ChatCard({ userName = "Juan", onBackgroundChange, onResetBackgro
         done = doneReading
         if (value) {
           buffer += decoder.decode(value, { stream: true })
-          
+
           let newlineIndex
           // SSE messages end with \n\n. Process fully received messages.
           while ((newlineIndex = buffer.indexOf("\n\n")) >= 0) {
             const message = buffer.slice(0, newlineIndex)
             buffer = buffer.slice(newlineIndex + 2)
-            
+
             if (message.startsWith("data: ")) {
               const dataStr = message.replace("data: ", "")
               try {
                 const parsed = JSON.parse(dataStr)
                 const text = parsed.text || ""
-                
+
                 // Append text to the last assistant message
                 setMessages((prev) => {
                   const newMsgs = [...prev]
@@ -143,11 +143,10 @@ export function ChatCard({ userName = "Juan", onBackgroundChange, onResetBackgro
                   </div>
                 )}
                 <div
-                  className={`px-4 py-2.5 rounded-2xl max-w-[85%] whitespace-pre-wrap ${
-                    m.role === "user"
+                  className={`px-4 py-2.5 rounded-2xl max-w-[85%] whitespace-pre-wrap ${m.role === "user"
                       ? "bg-sky-500 text-white rounded-br-sm"
                       : "bg-white/15 text-white/90 rounded-bl-sm border border-white/10"
-                  }`}
+                    }`}
                 >
                   {m.content || (m.role === "assistant" && isLoading ? (
                     <span className="flex gap-1 items-center h-5">

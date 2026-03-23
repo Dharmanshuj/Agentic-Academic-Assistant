@@ -49,6 +49,15 @@ class AgentState(TypedDict):
     #     return {"next_node": "out_of_scope"}
 
 async def supervisor(state: AgentState):
+    query = state["query"].lower()
+    
+    # Automatically route all ADMIN queries to the dedicated admin interface
+    if state["emp_id"] == "ADMIN":
+        return {"next_node": "admin_node"}
+        
+    if "all employee" in query or "everyone" in query:
+        return {"next_node": "admin_node"}
+        
     return {"next_node": "payroll_node"}
 
 
