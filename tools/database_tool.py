@@ -64,7 +64,8 @@ def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] =
 
 @tool
 def get_employee_by_id(emp_id: str):
-    """Query employee by ID and return sanitized JSON record."""
+    """Query employee by ID and return sanitized JSON record.
+    emp_id is taken as input which is str and is employee id"""
 
     conn = get_connection()
     cursor = conn.cursor()
