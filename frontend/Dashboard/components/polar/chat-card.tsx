@@ -5,16 +5,18 @@ import { SnowflakeIcon } from "@/components/icons/snowflake-icon"
 import { ChatInput } from "./chat-input"
 import { InputControls } from "./input-controls"
 import { SuggestionBadges } from "./suggestion-badges"
+import ReactMarkdown from "react-markdown"
 
 interface ChatCardProps {
   userName?: string
+  isAdmin?: boolean
   onBackgroundChange?: (imageUrl: string) => void
   onResetBackground?: () => void
 }
 
 type Message = { role: "user" | "assistant"; content: string }
 
-export function ChatCard({ userName, onBackgroundChange, onResetBackground }: ChatCardProps) {
+export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackground }: ChatCardProps) {
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -144,17 +146,33 @@ export function ChatCard({ userName, onBackgroundChange, onResetBackground }: Ch
                 )}
                 <div
                   className={`px-4 py-2.5 rounded-2xl max-w-[85%] whitespace-pre-wrap ${m.role === "user"
-                      ? "bg-sky-500 text-white rounded-br-sm"
-                      : "bg-white/15 text-white/90 rounded-bl-sm border border-white/10"
+                    ? "bg-sky-500 text-white rounded-br-sm"
+                    : "bg-white/15 text-white/90 rounded-bl-sm border border-white/10"
                     }`}
                 >
-                  {m.content || (m.role === "assistant" && isLoading ? (
+                  {m.content ? (
+                    m.role === "assistant" ? (
+                      <ReactMarkdown
+                        components={{
+                          ul: ({ node, ...props }: any) => <ul className="list-disc pl-4 my-1" {...props} />,
+                          ol: ({ node, ...props }: any) => <ol className="list-decimal pl-4 my-1" {...props} />,
+                          li: ({ node, ...props }: any) => <li className="my-0.5" {...props} />,
+                          p: ({ node, ...props }: any) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({ node, ...props }: any) => <strong className="font-semibold text-white/95" {...props} />
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    ) : (
+                      m.content
+                    )
+                  ) : m.role === "assistant" && isLoading ? (
                     <span className="flex gap-1 items-center h-5">
                       <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce" />
                       <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.2s]" />
                       <span className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce [animation-delay:0.4s]" />
                     </span>
-                  ) : null)}
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -175,7 +193,7 @@ export function ChatCard({ userName, onBackgroundChange, onResetBackground }: Ch
 
         {/* Suggestions - Only show if no messages */}
         {messages.length === 0 && (
-          <SuggestionBadges suggestions={DEFAULT_SUGGESTIONS} onSelect={handleSuggestionSelect} />
+          <SuggestionBadges suggestions={isAdmin ? ADMIN_SUGGESTIONS : DEFAULT_SUGGESTIONS} onSelect={handleSuggestionSelect} />
         )}
       </div>
     </div>
@@ -187,4 +205,11 @@ const DEFAULT_SUGGESTIONS = [
   { id: "2", label: "Show my last payslip" },
   { id: "3", label: "How much tax was deducted?" },
   { id: "4", label: "Breakdown of allowances" },
+]
+
+const ADMIN_SUGGESTIONS = [
+  { id: "1", label: "Show data for all employees" },
+  { id: "2", label: "What is the company leave policy?" },
+  { id: "3", label: "Average net pay for all employees" },
+  { id: "4", label: "Explain the handbook rules" },
 ]

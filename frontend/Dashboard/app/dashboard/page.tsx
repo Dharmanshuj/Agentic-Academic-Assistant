@@ -30,14 +30,18 @@ export default function PolarLandingPage() {
   const router = useRouter()
   const [backgroundImage, setBackgroundImage] = useState(DEFAULT_BACKGROUND)
   const [userName, setUserName] = useState("Employee")
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem("access_token")
     if (token) {
-      // Decode the token and extract the name (which FastAPI stored in the 'sub' variable)
+      // Decode the token and extract the name
       const decoded = parseJwt(token)
       if (decoded?.sub) {
         setUserName(decoded.sub)
+      }
+      if (decoded?.emp_id === "ADMIN") {
+        setIsAdmin(true)
       }
     }
   }, [])
@@ -76,7 +80,7 @@ export default function PolarLandingPage() {
       </div>
 
       <div className="relative z-10 flex w-full flex-col items-center">
-        <ChatCard userName={userName} onBackgroundChange={setBackgroundImage} onResetBackground={handleResetBackground} />
+        <ChatCard userName={userName} isAdmin={isAdmin} onBackgroundChange={setBackgroundImage} onResetBackground={handleResetBackground} />
       </div>
 
       <div className="relative z-10 pb-4">

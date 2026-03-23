@@ -17,11 +17,21 @@ export function FooterLinks() {
   return (
     <footer className="flex flex-col items-center justify-center gap-2 text-xs text-white/60">
       <div className="flex items-center gap-4">
-        <Link href="/privacy" className="transition-colors hover:text-white">
+        <Link 
+          href="https://www.peoplestrong.com/privacy-policy/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="transition-colors hover:text-white"
+        >
           Privacy Policy
         </Link>
         <span className="text-white/30">•</span>
-        <Link href="/terms" className="transition-colors hover:text-white">
+        <Link 
+          href="https://www.peoplestrong.com/id/terms-of-service-jinie/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="transition-colors hover:text-white"
+        >
           Terms & Conditions
         </Link>
       </div>

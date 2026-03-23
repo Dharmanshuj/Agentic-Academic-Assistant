@@ -21,58 +21,35 @@ class AgentState(TypedDict):
     final_answer: str
     next_node: str
 
-# --- Node Logic ---
-
-# async def supervisor(state: AgentState):
-#     """Decides what response to give for the user query."""
-#     prompt = (
-#         f"You are a helpful HR and Payroll assistant. Categorize this user request: '{state['query']}'.\n"
-#         "Respond with the data of employee:\n"
-#     )
-    
-#     response = await llm.ainvoke([HumanMessage(content=prompt)])
-#     route = response.content.strip().lower()
-    
-    # Mapping logic to ensure exact node names
-    # if "greeting" in route:
-    #     return {"next_node": "greeting_node"}
-    # elif "payroll" in route:
-    #     return {"next_node": "payroll_node"}
-    # elif "policy" in route:
-    #     return {"next_node": "policy_node"}
-    # else:
-    #     return {"next_node": "out_of_scope"}
-
 async def supervisor(state: AgentState):
     query = state["query"].lower()
     
-    # Automatically route all ADMIN queries to the dedicated admin interface
-    if state["emp_id"] == "ADMIN":
-        return {"next_node": "admin_node"}
+    prompt = f"""
+You are an intelligent HR Agent Router.
+Analyze the user's query and categorize their intent into exactly ONE of the following categories:
+
+- policy_node : Questions about company rules, HR policies, handbooks, time off, leave, or benefits.
+- admin_node : Requests to view data, salaries, or records for ALL employees or everyone.
+- payroll_node : Questions about the user's own specific salary, personal payslips, deductions, or compensation.
+
+User Query: "{query}"
+
+You must respond with ONLY the exact category name. Do not include quotes or any other text.
+"""
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    route = response.content.strip().strip('"').strip("'").lower()
+    
+    valid_routes = ["policy_node", "admin_node", "payroll_node"]
+    if route in valid_routes:
+        return {"next_node": route}
         
-    if "all employee" in query or "everyone" in query:
+    # Fallback to defaults if the LLM hallucinates
+    if state["emp_id"] == "ADMIN":
         return {"next_node": "admin_node"}
         
     return {"next_node": "payroll_node"}
 
 
-# async def greeting_logic(state: AgentState):
-#     return {"final_answer": "Hello! I am your HR & Payroll assistant. How can I help you with your salary or policy queries today?"}
-
-# async def payroll_logic(state: AgentState):
-#     # Call the tool using .ainvoke()
-#     record = await get_employee_by_id.ainvoke({"emp_id": state["emp_id"]})
-    
-#     if not record or "base" not in record:
-#         return {"final_answer": "I couldn't find your payroll records. Please contact HR."}
-
-#     result = calculate_prorated_salary(
-#         base_salary=record["base"], 
-#         total_days=record["total"], 
-#         present_days=record["present"]
-#     )
-    
-#     return {"final_answer": f"Your calculated salary is {result['amount']} (Formula: {result['formula']})."}
 async def payroll_logic(state: AgentState):
     record = await get_employee_by_id.ainvoke({
         "emp_id": state["emp_id"]
@@ -102,41 +79,6 @@ Instructions:
     response = await llm.ainvoke([HumanMessage(content=prompt)])
 
     return {"final_answer": response.content}
-    # Extract values
-    # basic = record["basic_salary"]
-    # hra = record["hra"]
-    # conveyance = record["conveyance"]
-    # medical = record["medical"]
-    # special = record["special"]
-
-    # gross = record["gross_salary"]
-
-    # epf = record["epf"]
-    # insurance = record["health_insurance"]
-    # tax = record["professional_tax"]
-    # tds = record["tds"]
-
-    # deductions = record["total_deductions"]
-    # net = record["net_pay"]
-
-    # return {
-    #     "final_answer": (
-    #         f"💼 Salary Breakdown:\n"
-    #         f"Basic: ₹{basic}\n"
-    #         f"HRA: ₹{hra}\n"
-    #         f"Conveyance: ₹{conveyance}\n"
-    #         f"Medical: ₹{medical}\n"
-    #         f"Special Allowance: ₹{special}\n\n"
-    #         f"📈 Gross Salary: ₹{gross}\n\n"
-    #         f"📉 Deductions:\n"
-    #         f"EPF: ₹{epf}\n"
-    #         f"Health Insurance: ₹{insurance}\n"
-    #         f"Professional Tax: ₹{tax}\n"
-    #         f"TDS: ₹{tds}\n"
-    #         f"Total Deductions: ₹{deductions}\n\n"
-    #         f"💰 Net Pay: ₹{net}"
-    #     )
-    # }
 
 async def admin_logic(state: AgentState):
     if state["emp_id"] != "ADMIN":
@@ -161,11 +103,25 @@ Instructions:
     response = await llm.ainvoke([HumanMessage(content=prompt)])
     return {"final_answer": response.content}
 
-# async def policy_logic(state: AgentState):
-#     return {"final_answer": "Our policy states that prorated salary is calculated based on total calendar days in the month."}
+async def policy_logic(state: AgentState):
+    # Query your RAG database safely via synchronous python function call directly
+    docs = search_documents.func(state["query"])
+    
+    prompt = f"""
+You are an HR Policy Assistant. Use the following retrieved policy documents to answer the user's question.
 
-# async def out_of_scope_logic(state: AgentState):
-#     return {"final_answer": "I'm sorry, I am specifically trained to help with HR and Payroll questions. I can't assist with that request."}
+Documents:
+{docs}
+
+Question:
+{state['query']}
+
+Instructions:
+- Answer the user's question based strictly on the provided documents.
+- If the documents don't contain the answer, politely state that you can't find it in the current policy handbook.
+"""
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    return {"final_answer": response.content}
 
 # --- Graph Construction ---
 def create_graph():
@@ -174,6 +130,7 @@ def create_graph():
     workflow.add_node("supervisor", supervisor)
     workflow.add_node("payroll_node", payroll_logic)
     workflow.add_node("admin_node", admin_logic)
+    workflow.add_node("policy_node", policy_logic)
 
     workflow.set_entry_point("supervisor")
 
@@ -182,44 +139,15 @@ def create_graph():
         lambda state: state["next_node"],
         {
             "payroll_node": "payroll_node",
-            "admin_node": "admin_node"
+            "admin_node": "admin_node",
+            "policy_node": "policy_node"
         }
     )
     workflow.add_edge("payroll_node", END)
     workflow.add_edge("admin_node", END)
+    workflow.add_edge("policy_node", END)
 
     return workflow.compile()
-# def create_graph():
-#     workflow = StateGraph(AgentState)
-    
-#     # Add all nodes
-#     workflow.add_node("supervisor", supervisor)
-#     workflow.add_node("greeting_node", greeting_logic)
-#     workflow.add_node("payroll_node", payroll_logic)
-#     workflow.add_node("policy_node", policy_logic)
-#     workflow.add_node("out_of_scope", out_of_scope_logic)
-    
-#     workflow.set_entry_point("supervisor")
-    
-#     # Define routing
-#     workflow.add_conditional_edges(
-#         "supervisor",
-#         lambda state: state["next_node"],
-#         {
-#             "greeting_node": "greeting_node",
-#             "payroll_node": "payroll_node",
-#             "policy_node": "policy_node",
-#             "out_of_scope": "out_of_scope"
-#         }
-#     )
-    
-#     # All nodes lead to the end
-#     workflow.add_edge("greeting_node", END)
-#     workflow.add_edge("payroll_node", END)
-#     workflow.add_edge("policy_node", END)
-#     workflow.add_edge("out_of_scope", END)
-    
-#     return workflow.compile()
 
 # --- Execution Entry Point ---
 

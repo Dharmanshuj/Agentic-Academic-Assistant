@@ -13,7 +13,7 @@ def search_documents(query: str):
     Search relevant documents based on the user query.
     """
 
-    docs = retriever.get_relevant_documents(query)
+    docs = retriever.invoke(query)
 
     results = []
 

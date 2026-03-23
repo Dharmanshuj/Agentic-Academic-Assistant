@@ -22,73 +22,17 @@ class UserCredentials(BaseModel):
     empno: str
     password: str
 
-class RegisterRequest(UserCredentials):
-    empno: str
-    password: str
-
-# --- Mock DB ---
-
-# Check if employee exists
-    # users_db.execute(
-    #     "SELECT empno, hashed_password FROM employees WHERE empno = ?",
-    #     (request.emp_id,)
-    # )
-    # employee = users_db.fetchone()
 # --- Endpoints ---
 @router.get("/debug-routes")
 def get_routes():
     return [route.path for route in router.routes]
-
-
-# @app.get("/chat")
-# def chat(query: str):
-#     result = chatbot_agent.invoke({
-#         "messages": [("user", query)]
-#     })
-
-#     return {
-#         "response": result["messages"][-1].content
-#     }
-
-# @router.post("/register")
-# async def register(request: RegisterRequest):
-#     conn = get_connection()
-#     users_db = conn.cursor()
-
-#     # Check if employee exists
-#     users_db.execute(
-#         "SELECT empno, hashed_password FROM employees WHERE empno = ?",
-#         (request.emp_id,)
-#     )
-#     employee = users_db.fetchone()
-
-#     if not employee:
-#         raise HTTPException(status_code=404, detail="Employee not found")
-
-#     # if request.username in users_db:
-#     #     raise HTTPException(status_code=400, detail="User already exists")
-#     # Store hashed password
-#     hashed_pw = hash_password(request.password)
-
-#     users_db.execute(
-#         "UPDATE employees SET hashed_password = ? WHERE empno = ?",
-#         (hashed_pw, request.emp_id)
-#     )
-#     # users_db[request.username] = {
-#     #     "hashed_password": hash_password(request.password),
-#     #     "emp_id": request.emp_id
-#     # }
-
-#     conn.commit()
-#     conn.close()
-#     return {"message": "User registered successfully"}
 
 @router.post("/login")
 # Change the argument to use OAuth2PasswordRequestForm
 async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     # Hardcoded ADMIN login
     if credentials.username == "ADMIN" and credentials.password == "admin123":
-        token = create_access_token("ADMIN", "System Administrator")
+        token = create_access_token("ADMIN", "Administrator")
         return {"access_token": token, "token_type": "bearer"}
 
     conn = get_connection()

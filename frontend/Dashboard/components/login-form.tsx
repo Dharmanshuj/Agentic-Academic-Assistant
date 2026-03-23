@@ -122,7 +122,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         </div>
       </form>
       <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+        By clicking continue, you agree to our <a href="https://www.peoplestrong.com/id/terms-of-service-jinie/" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://www.peoplestrong.com/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
       </div>
     </div>
   )
