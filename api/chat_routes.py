@@ -39,7 +39,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     users_db = conn.cursor()
 
     users_db.execute(
-        "SELECT empno, name, hashed_password FROM employees WHERE empno = %s",
+        "SELECT empno, hash_password FROM employees WHERE empno = %s",
         (credentials.username,)
     )
 
