@@ -206,7 +206,7 @@ async def admin_logic(state: AgentState):
     import json
     date_prompt = f"""Extract the target month and year from this admin query.
 Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
-If no month is explicitly or implicitly mentioned, set "month" to null.
+If no month is explicitly or implicitly mentioned, set "month" to current month.
 If no year is mentioned, set "year" to 2026.
 Example valid output: {{"month": 2, "year": 2026}}
 
