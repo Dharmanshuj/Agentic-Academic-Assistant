@@ -20,8 +20,17 @@ from calculation.calculator import calculate_prorated_salary
 # Initialize LLM with REST transport to avoid DNS/GRPC issues
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash-lite", 
-    google_api_key=os.environ.get("GEMINI_API_KEY")
+    google_api_key=os.environ.get("GEMINI_API_KEY"),
 )
+
+llm.bind_tools([
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment,
+    get_all_employees_data,
+    admin_get_monthly_metrics,
+    get_all_attendance_for_employee
+])
 
 class AgentState(TypedDict):
     query: str
