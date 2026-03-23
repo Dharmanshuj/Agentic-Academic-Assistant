@@ -48,6 +48,19 @@ from security.audit_logger import log_tool_usage, log_security_event
 #     conn.close()
 
 #     return str(records)
+@tool
+def get_all_employees_data():
+    """Query data for all employees. ONLY allowed for ADMIN user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT empno, name, dept, designation, net_pay
+        FROM employees
+    """)
+    rows = cursor.fetchall()
+    records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
+    conn.close()
+    return records
 
 @tool
 def get_employee_by_id(emp_id: str):

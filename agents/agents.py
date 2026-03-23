@@ -10,7 +10,8 @@ import re
 from tools.database_tool import (
     get_employee_by_id,
     get_attendance,
-    get_salary_payment
+    get_salary_payment,
+    get_all_employees_data
 )
 from calculation.calculator import calculate_prorated_salary
 
@@ -125,7 +126,7 @@ async def payroll_logic(state: AgentState):
         "emp_id": state["emp_id"]
     })
 
-    if not employee:
+    if not employee or isinstance(employee, str):
         return {"final_answer": "I couldn't find your employee information. Please contact HR."}
 
     # Step 2: Extract month/year from query
@@ -227,31 +228,85 @@ Instructions:
     
 #     return workflow.compile()
 
-# --- Execution Entry Point ---
+async def admin_logic(state: AgentState):
+
+    if state["emp_id"] != "ADMIN":
+
+        return {"final_answer": "Unauthorized Access. Only the ADMIN can query data for all employees."}
+ 
+    records = await get_all_employees_data.ainvoke({})
+ 
+    admin_data = "\n".join([str(r) for r in records])
+
+    prompt = f"""
+
+You are an HR Admin Assistant.
+ 
+Here is the data for ALL employees:
+
+{admin_data}
+
+Admin question:
+
+{state['query']}
+
+Instructions:
+
+- Summarize or answer based on the dataset above.
+
+- Be concise.
+
+"""
+
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+
+    return {"final_answer": response. Content}
+ 
 
 # --- Graph Construction ---
 def create_graph():
-    workflow = StateGraph(AgentState)
 
+    workflow = StateGraph(AgentState)
+ 
     workflow.add_node("supervisor", supervisor)
+
     workflow.add_node("payroll_node", payroll_logic)
 
+    workflow.add_node("admin_node", admin_logic)
+ 
     workflow.set_entry_point("supervisor")
+ 
+    workflow.add_conditional_edges(
 
-    workflow.add_edge("supervisor", "payroll_node")
+        "supervisor",
+
+        lambda state: state["next_node"],
+
+        {
+
+            "payroll_node": "payroll_node",
+
+            "admin_node": "admin_node"
+
+        }
+
+    )
+
     workflow.add_edge("payroll_node", END)
 
+    workflow.add_edge("admin_node", END)
+ 
     return workflow.compile()
-
+ 
 async def run_salary_agent(query: str, emp_id: str, session_id: str):
     graph = create_graph()
     initial_state = {
-        "query": query, 
-        "emp_id": emp_id, 
-        "final_answer": "", 
+        "query": query,
+        "emp_id": emp_id,
+        "final_answer": "",
         "next_node": ""
     }
-    
+
     async for event in graph.astream(initial_state):
         for node_name, output in event.items():
             if "final_answer" in output:
