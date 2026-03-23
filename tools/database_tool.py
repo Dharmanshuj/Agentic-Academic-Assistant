@@ -21,6 +21,46 @@ def get_all_employees_data():
     conn.close()
     return records
 
+
+@tool
+def admin_get_monthly_metrics(month: int = None, year: int = None):
+    """Admin tool to get attendance and salary payments for all employees across a given month."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # If no month/year is specified, fetch the most recent global month deployed
+    if not month or not year:
+        cursor.execute("SELECT MAX(month), MAX(year) FROM attendance")
+        res = cursor.fetchone()
+        if res and res[0] and res[1]:
+            month, year = res[0], res[1]
+        else:
+            month, year = 3, 2026 # ultimate fallback
+            
+    query = """
+        SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.inhand_net_pay
+        FROM employees e
+        LEFT JOIN attendance a ON e.empno = a.empno AND a.month = %s AND a.year = %s
+        LEFT JOIN salary_payments s ON a.id = s.attendance_id
+    """
+    cursor.execute(query, (month, year))
+    rows = cursor.fetchall()
+    
+    records = []
+    for r in rows:
+        records.append({
+            "empno": r[0],
+            "name": r[1],
+            "total_days": r[2],
+            "present_days": r[3],
+            "absent_days": r[4],
+            "inhand_net_pay": r[5],
+            "month": month,
+            "year": year
+        })
+    conn.close()
+    return records
+
 @tool
 def get_employee_by_id(emp_id: str):
     """Query employee by ID and return sanitized JSON record."""
@@ -76,25 +116,35 @@ def get_employee_by_id(emp_id: str):
     return record
 
 @tool
-def get_attendance(emp_id: str, month: int, year: int):
+def get_attendance(emp_id: str, month: int = None, year: int = None):
     """
-    Get attendance for employee for a specific month.
-    Use this when user asks about presence, absence, or working days.
+    Get attendance for employee for a specific month or year.
     """
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT id, total_days, present_days, absent_days
-        FROM attendance
-        WHERE empno = %s AND month = %s AND year = %s
-        """,
-        (emp_id, month, year)
-    )
+    if month and year:
+        cursor.execute(
+            """
+            SELECT id, total_days, present_days, absent_days, month, year
+            FROM attendance
+            WHERE empno = %s AND month = %s AND year = %s
+            """,
+            (emp_id, month, year)
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT id, total_days, present_days, absent_days, month, year
+            FROM attendance
+            WHERE empno = %s
+            ORDER BY year DESC, month DESC
+            LIMIT 1
+            """,
+            (emp_id,)
+        )
 
     r = cursor.fetchone()
-
     conn.close()
 
     if not r:
@@ -104,7 +154,9 @@ def get_attendance(emp_id: str, month: int, year: int):
         "attendance_id": r[0],
         "total_days": r[1],
         "present_days": r[2],
-        "absent_days": r[3]
+        "absent_days": r[3],
+        "month_recorded": r[4],
+        "year_recorded": r[5]
     }
     
 @tool
