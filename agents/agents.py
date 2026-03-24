@@ -1,8 +1,10 @@
 import os
-from typing import TypedDict
+from typing import TypedDict, Annotated
+import operator
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 
 # Import your tools and calculator
 from tools.document_tool import search_documents
@@ -20,17 +22,31 @@ from calculation.calculator import calculate_prorated_salary
 # Initialize LLM with REST transport to avoid DNS/GRPC issues
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash-lite", 
-    google_api_key=os.environ.get("GEMINI_API_KEY")
+    google_api_key=os.environ.get("GEMINI_API_KEY"),
 )
+
+llm.bind_tools([
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment,
+    get_all_employees_data,
+    admin_get_monthly_metrics,
+    get_all_attendance_for_employee
+])
 
 class AgentState(TypedDict):
     query: str
     emp_id: str
     final_answer: str
     next_node: str
+    messages: Annotated[list, operator.add]
 
 async def supervisor(state: AgentState):
     query = state["query"].lower()
+    
+    # Provide the router with the chat history so follow-ups ("And March?") map correctly
+    recent_history = state.get("messages", [])[-4:]
+    history_text = "\n".join([f"{type(m).__name__}: {m.content[:150]}" for m in recent_history])
     
     prompt = f"""
 You are an intelligent HR Agent Router.
@@ -38,7 +54,10 @@ Analyze the user's query and categorize their intent into exactly ONE of the fol
 
 - policy_node : Questions about company rules, HR policies, handbooks, time off, leave, or benefits.
 - admin_node : Requests to view data, salaries, or records for ALL employees or everyone.
-- payroll_node : Questions about the user's own specific salary, personal payslips, deductions, or compensation.
+- payroll_node : Questions about the user's personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
+
+Recent Conversation History:
+{history_text}
 
 User Query: "{query}"
 
@@ -102,9 +121,8 @@ async def payroll_logic(state: AgentState):
     date_prompt = f"""Extract the target month and year from this query.
 Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
 If no month is explicitly or implicitly mentioned, set "month" to null.
-If no year is mentioned, set "year" to 2026.
-If the user asks for all attendance or history, set "all" to true, otherwise false.
-Example valid output: {{"month": 2, "year": 2026, "all": false}}
+If no year is mentioned, set "year" to null.
+Example valid output: {{"month": 2, "year": 2026}}
 here 1 is jan, 2 is feb, 3 is mar, 4 is apr, 5 is may, 6 is jun, 7 is jul, 8 is aug, 9 is sep, 10 is oct, 11 is nov, 12 is dec
 
 Perform the exact payroll calculation. 
@@ -116,27 +134,68 @@ Query: '{query}'
         date_res = await llm.ainvoke([HumanMessage(content=date_prompt)])
         raw_json = date_res.content.strip().replace("```json", "").replace("```", "")
         extracted = json.loads(raw_json)
-        month = extracted.get("month")
-        year = extracted.get("year", 2026)
-        all_records = extracted.get("all", False)
+        extracted_month = extracted.get("month")
+        extracted_year = extracted.get("year")
     except Exception:
-        month = None
-        year = 2026
-        all_records = False
-
-    # Retrieve attendance data
-    if all_records:
-        attendance_records = await get_all_attendance_for_employee.ainvoke({
-            "emp_id": state["emp_id"]
-        })
-        attendance = attendance_records  # list of records
-        salary = None  # For all records, we might not fetch salary for each
+        extracted_month = None
+        extracted_year = None
+        
+    # --- Execute Business Target Rules ---
+    current_demo_year = 2026
+    
+    if extracted_month is None and extracted_year is None:
+        target_month = None
+        target_year = current_demo_year
+    elif extracted_month is None and extracted_year is not None:
+        target_month = None
+        target_year = extracted_year
+    elif extracted_month is not None and extracted_year is None:
+        target_month = extracted_month
+        target_year = current_demo_year
     else:
-        # Retrieve either the exact month or the absolute latest record found
+        target_month = extracted_month
+        target_year = extracted_year
+
+    # --- Step 4: Format Data (MINIMAL CHANGE from your original logic) ---
+    def format_data(data: dict, title: str):
+        if not data:
+            return f"{title}: Not available"
+        return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
+
+    employee_data = format_data(employee, "Employee Data")
+
+    # Fetch Data Based on Target Strategy
+    if target_month is None:
+        attendance_records = await get_all_attendance_for_employee.ainvoke({
+            "emp_id": state["emp_id"],
+            "year": target_year
+        })
+        
+        if attendance_records:
+            attendance_data = f"--- ATTENDANCE HISTORY ({target_year}) ---\n"
+            
+            # Extract baseline net pay for general salary inquiries
+            base_net = employee.get('net_pay', 'N/A')
+            salary_data = f"--- BASE SALARY ---\nFixed Net Salary: ₹{base_net} per month\n\n--- NET SALARY PAYOUTS ({target_year}) ---\n"
+            
+            for r in attendance_records:
+                attendance_data += f"Month {r.get('month')}: Total Days: {r.get('total_days')}, Present: {r.get('present_days')}, Absent: {r.get('absent_days')}\n"
+                
+                # Fetch specific salary details for this month's attendance_id
+                sal = await get_salary_payment.ainvoke({"attendance_id": r.get("attendance_id")})
+                if sal and sal.get("final_salary"):
+                    salary_data += f"Month {r.get('month')}: Paid Net: ₹{sal.get('final_salary')}\n"
+                else:
+                    salary_data += f"Month {r.get('month')}: Paid Net: Pending\n"
+        else:
+            attendance_data = f"Attendance Data: No records found for {target_year}"
+            base_net = employee.get('net_pay', 'N/A')
+            salary_data = f"Salary Data: Your fixed Net Salary is ₹{base_net} per month. No payouts recorded for {target_year}."
+    else:
         attendance = await get_attendance.ainvoke({
             "emp_id": state["emp_id"],
-            "month": month,
-            "year": year
+            "month": target_month,
+            "year": target_year
         })
         
         salary = None
@@ -169,7 +228,7 @@ Query: '{query}'
             return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
 
     prorated_data = ""
-    if not all_records and 'prorated_salary' in locals():
+    if 'prorated_salary' in locals():
         prorated_data = format_data(prorated_salary, "Calculated Prorated Salary")
         
     employee_data = format_data(employee, "Employee Data")
@@ -194,16 +253,22 @@ User question:
 Instructions:
 - Answer ONLY based on the given data
 - If user asks attendance → use attendance data
-- If user asks for all attendance/history, summarize the records showing months, years, present days, etc.
 - If user asks meaning (like EPF, TDS), explain clearly
 - If user asks salary → use salary data→ give correct numbers
 - If explaining deductions → combine attendance + salary
 - Be concise and professional
 """
 
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    past_messages = state.get("messages", [])
+    response = await llm.ainvoke(past_messages + [HumanMessage(content=prompt)])
 
-    return {"final_answer": response.content}
+    return {
+        "final_answer": response.content,
+        "messages": [
+            HumanMessage(content=state['query']),
+            AIMessage(content=response.content)
+        ]
+    }
     # Extract values
     # basic = record["basic_salary"]
     # hra = record["hra"]
@@ -247,8 +312,8 @@ async def admin_logic(state: AgentState):
     import json
     date_prompt = f"""Extract the target month and year from this admin query.
 Return ONLY a raw JSON dictionary. Do NOT use markdown code blocks.
-If no month is explicitly or implicitly mentioned, set "month" to current month.
-If no year is mentioned, set "year" to 2026.
+If no month is explicitly or implicitly mentioned, set "month" to null.
+If no year is mentioned, set "year" to null.
 Example valid output: {{"month": 2, "year": 2026}}
 
 Query: '{state['query']}'
@@ -257,18 +322,38 @@ Query: '{state['query']}'
         date_res = await llm.ainvoke([HumanMessage(content=date_prompt)])
         raw_json = date_res.content.strip().replace("```json", "").replace("```", "")
         extracted = json.loads(raw_json)
-        month = extracted.get("month")
-        year = extracted.get("year", 2026)
+        extracted_month = extracted.get("month")
+        extracted_year = extracted.get("year")
     except Exception:
-        month = None
-        year = 2026
+        extracted_month = None
+        extracted_year = None
+
+    current_demo_year = 2026
+    
+    if extracted_month is None and extracted_year is None:
+        target_month = None
+        target_year = current_demo_year
+    elif extracted_month is None and extracted_year is not None:
+        target_month = None
+        target_year = extracted_year
+    elif extracted_month is not None and extracted_year is None:
+        target_month = extracted_month
+        target_year = current_demo_year
+    else:
+        target_month = extracted_month
+        target_year = extracted_year
 
     base_records = await get_all_employees_data.ainvoke({})
-    metrics = await admin_get_monthly_metrics.ainvoke({"month": month, "year": year})
+    metrics = await admin_get_monthly_metrics.ainvoke({"month": target_month, "year": target_year})
     
     admin_data = "--- BASE EMPLOYEE DATA ---\n"
     admin_data += "\n".join([str(r) for r in base_records])
-    admin_data += f"\n\n--- MONTHLY ATTENDANCE & SALARY DATA (Month: {month}, Year: {year}) ---\n"
+    
+    if target_month is None:
+        admin_data += f"\n\n--- AGGREGATE ATTENDANCE & SALARY DATA ({target_year}) ---\n"
+    else:
+        admin_data += f"\n\n--- MONTHLY ATTENDANCE & SALARY DATA (Month: {target_month}, Year: {target_year}) ---\n"
+        
     admin_data += "\n".join([str(r) for r in metrics])
 
     prompt = f"""
@@ -284,8 +369,15 @@ Instructions:
 - Summarize or answer based on the dataset above.
 - Be concise.
 """
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
-    return {"final_answer": response.content}
+    past_messages = state.get("messages", [])
+    response = await llm.ainvoke(past_messages + [HumanMessage(content=prompt)])
+    return {
+        "final_answer": response.content,
+        "messages": [
+            HumanMessage(content=state['query']),
+            AIMessage(content=response.content)
+        ]
+    }
 
 # async def policy_logic(state: AgentState):
 #     return {"final_answer": "Our policy states that prorated salary is calculated based on total calendar days in the month."}
@@ -310,9 +402,18 @@ Instructions:
 - Answer the user's question based strictly on the provided documents.
 - If the documents don't contain the answer, politely state that you can't find it in the current policy handbook.
 """
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
-    return {"final_answer": response.content}
+    past_messages = state.get("messages", [])
+    response = await llm.ainvoke(past_messages + [HumanMessage(content=prompt)])
+    return {
+        "final_answer": response.content,
+        "messages": [
+            HumanMessage(content=state['query']),
+            AIMessage(content=response.content)
+        ]
+    }
 # --- Graph Construction ---
+memory = MemorySaver()
+
 def create_graph():
     workflow = StateGraph(AgentState)
 
@@ -336,7 +437,7 @@ def create_graph():
     workflow.add_edge("admin_node", END)
     workflow.add_edge("policy_node", END)
 
-    return workflow.compile()
+    return workflow.compile(checkpointer=memory)
  
 async def run_salary_agent(query: str, emp_id: str, session_id: str):
     graph = create_graph()
@@ -344,10 +445,12 @@ async def run_salary_agent(query: str, emp_id: str, session_id: str):
         "query": query,
         "emp_id": emp_id,
         "final_answer": "",
-        "next_node": ""
+        "next_node": "",
+        "messages": []
     }
+    config = {"configurable": {"thread_id": session_id}}
 
-    async for event in graph.astream(initial_state):
+    async for event in graph.astream(initial_state, config):
         for node_name, output in event.items():
             if "final_answer" in output:
                 yield output["final_answer"]

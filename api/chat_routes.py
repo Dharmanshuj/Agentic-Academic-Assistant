@@ -82,7 +82,8 @@ async def ask_payroll_stream(
     # if request.employee_id != user.get("empno"):
     #     raise HTTPException(status_code=403, detail="Unauthorized access to this employee ID")
 
-    session_id = str(uuid.uuid4())
+    # By using their emp_id as their session_id, LangGraph gives them permanent continuous chatbot memory!
+    session_id = user.get("emp_id")
     
     async def stream_generator():
         async for chunk in run_salary_agent(request.query, user.get("emp_id"), session_id):
