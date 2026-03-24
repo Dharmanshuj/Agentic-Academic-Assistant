@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
+import Link from "next/link"
 
 // Simple frontend-only JWT parser to read token payloads
 function parseJwt(token: string) {
@@ -60,6 +61,18 @@ export default function PolarLandingPage() {
     >
       {/* Gradient overlay for better contrast */}
       <div className="absolute inset-0 bg-linear-to-t from-black via-black/50 to-transparent" />
+
+      {/* Admin Register Button */}
+      {isAdmin && (
+        <div className="absolute top-4 left-6 z-20">
+          <Link
+            href="/dashboard/admin/register"
+            className="flex items-center justify-center px-4 py-2 text-sm font-medium text-white/70 border border-white/20 hover:text-white hover:bg-white/10 rounded-md transition-colors backdrop-blur-md"
+          >
+            + Register New Employee
+          </Link>
+        </div>
+      )}
 
       {/* Logout Button */}
       <div className="absolute top-4 right-6 z-20">

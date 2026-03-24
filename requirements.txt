@@ -31,7 +31,7 @@ sentence-transformers
 # Utilities
 python-dotenv
 loguru
-passlib[bcrypt]
+passlib
 langchain-google-genai
 mysql-connector-python
 argon2-cffi
