@@ -82,6 +82,7 @@ from tools.database_tool import (
     get_attendance,
     get_salary_payment
 )
+from calculation.calculator import calculate_prorated_salary
 async def payroll_logic(state: AgentState):
 
     # Step 1: Employee
@@ -143,6 +144,16 @@ Query: '{query}'
             salary = await get_salary_payment.ainvoke({
                 "attendance_id": attendance["attendance_id"]
             })
+            
+        prorated_salary = None
+        if not isinstance(employee, str) and attendance:
+            try:
+                base_sal = float(employee.get("basic_salary", 0))
+                tot_days = int(attendance.get("total_days", 0))
+                pres_days = int(attendance.get("present_days", 0))
+                prorated_salary = calculate_prorated_salary(base_sal, tot_days, pres_days)
+            except Exception as e:
+                prorated_salary = {"error": f"Could not calculate: {str(e)}"}
 # --- Step 4: Format Data (MINIMAL CHANGE from your original logic) ---
     def format_data(data, title: str):
         if not data:
@@ -157,6 +168,10 @@ Query: '{query}'
             # For single dict
             return f"{title}:\n" + "\n".join([f"{k}: {v}" for k, v in data.items()])
 
+    prorated_data = ""
+    if not all_records and 'prorated_salary' in locals():
+        prorated_data = format_data(prorated_salary, "Calculated Prorated Salary")
+        
     employee_data = format_data(employee, "Employee Data")
     attendance_data = format_data(attendance, "Attendance Data")
     salary_data = format_data(salary, "Salary Data")
@@ -170,6 +185,8 @@ Here is the employee's salary data:
 {attendance_data}
 
 {salary_data}
+
+{prorated_data}
 
 User question:
 {state['query']}
