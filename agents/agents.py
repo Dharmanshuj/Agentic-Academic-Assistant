@@ -128,6 +128,7 @@ here 1 is jan, 2 is feb, 3 is mar, 4 is apr, 5 is may, 6 is jun, 7 is jul, 8 is 
 Perform the exact payroll calculation. 
     Logic: Base * (Present / Total)
     amount = base_salary * (present_days / total_days)
+    Suppose for an employee monthly salary = 30,000, but he was present for only 20 out of 30 days, The calculation can be shown as 30,000 * (20/30) = 20,000
 Query: '{query}'
 """
     try:
