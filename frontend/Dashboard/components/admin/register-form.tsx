@@ -8,6 +8,29 @@ import { useRouter } from "next/navigation";
 export function RegisterEmployeeForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [salary, setSalary] = useState({
+    basicSalary: 0,
+    hra: 0,
+    conveyance: 0,
+    medical: 0,
+    special: 0,
+    epf: 0,
+    healthInsurance: 0,
+    professionalTax: 0,
+    tds: 0
+  });
+
+  const handleSalaryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setSalary(prev => ({
+      ...prev,
+      [name]: parseFloat(value) || 0
+    }));
+  };
+
+  const grossSalary = salary.basicSalary + salary.hra + salary.conveyance + salary.medical + salary.special;
+  const totalDeductions = salary.epf + salary.healthInsurance + salary.professionalTax + salary.tds;
+  const netPay = grossSalary - totalDeductions;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -15,6 +38,11 @@ export function RegisterEmployeeForm() {
 
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
+    
+    // Ensure calculated values are included in the submission
+    data.grossSalary = grossSalary.toString();
+    data.totalDeductions = totalDeductions.toString();
+    data.netPay = netPay.toString();
 
     try {
       const response = await fetch("http://localhost:8080/api/employees/register", {
@@ -30,6 +58,17 @@ export function RegisterEmployeeForm() {
 
       toast.success("Employee registered successfully!");
       (e.target as HTMLFormElement).reset();
+      setSalary({
+        basicSalary: 0,
+        hra: 0,
+        conveyance: 0,
+        medical: 0,
+        special: 0,
+        epf: 0,
+        healthInsurance: 0,
+        professionalTax: 0,
+        tds: 0
+      });
       router.push("/dashboard");
     } catch (error) {
       toast.error("Registration failed. Please ensure the backend is running.");
@@ -71,18 +110,18 @@ export function RegisterEmployeeForm() {
         <div>
           <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Salary & Tax Breakdowns</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-1.5"><label className="text-sm font-medium">Basic Salary</label><input name="basicSalary" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">HRA</label><input name="hra" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Conveyance</label><input name="conveyance" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Medical</label><input name="medical" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Special</label><input name="special" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Gross Salary</label><input name="grossSalary" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">EPF</label><input name="epf" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Health Insur.</label><input name="healthInsurance" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Prof. Tax</label><input name="professionalTax" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">TDS</label><input name="tds" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Total Ded.</label><input name="totalDeductions" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Net Pay</label><input name="netPay" type="number" step="0.01" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Basic Salary</label><input name="basicSalary" type="number" step="0.01" required value={salary.basicSalary} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">HRA</label><input name="hra" type="number" step="0.01" required value={salary.hra} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Conveyance</label><input name="conveyance" type="number" step="0.01" required value={salary.conveyance} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Medical</label><input name="medical" type="number" step="0.01" required value={salary.medical} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Special</label><input name="special" type="number" step="0.01" required value={salary.special} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Gross Salary</label><input name="grossSalary" type="number" step="0.01" readOnly value={grossSalary} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">EPF</label><input name="epf" type="number" step="0.01" required value={salary.epf} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Health Insur.</label><input name="healthInsurance" type="number" step="0.01" required value={salary.healthInsurance} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Prof. Tax</label><input name="professionalTax" type="number" step="0.01" required value={salary.professionalTax} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">TDS</label><input name="tds" type="number" step="0.01" required value={salary.tds} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Total Ded.</label><input name="totalDeductions" type="number" step="0.01" readOnly value={totalDeductions} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Net Pay</label><input name="netPay" type="number" step="0.01" readOnly value={netPay} className="input-field w-full px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold text-green-600" placeholder="Calculated automatically" /></div>
           </div>
         </div>
 
