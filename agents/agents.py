@@ -20,6 +20,14 @@ from tools.database_tool import (
     admin_get_monthly_metrics,
     get_all_attendance_for_employee,
 )
+from tools.mcp_tool import (
+    get_employee_details_mcp,
+    get_employee_attendance_mcp,
+    get_employee_salary_mcp,
+    get_all_employees_data_mcp,
+    get_all_employees_salary_mcp,
+    get_all_employees_attendance_mcp,
+)
 from calculation.calculator import calculate_prorated_salary
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
@@ -28,18 +36,18 @@ _base_llm = ChatGoogleGenerativeAI(
     google_api_key=os.environ.get("GEMINI_API_KEY"),
 )
 
-# Payroll tools the agent may call
+# Payroll tools the agent may call (now using MCP)
 PAYROLL_TOOLS = [
-    get_employee_by_id,
-    get_attendance,
-    get_salary_payment,
-    get_all_attendance_for_employee,
+    get_employee_details_mcp,
+    get_employee_attendance_mcp,
+    get_employee_salary_mcp,
 ]
 
-# Admin tools the agent may call
+# Admin tools the agent may call (now using MCP)
 ADMIN_TOOLS = [
-    get_all_employees_data,
-    admin_get_monthly_metrics,
+    get_all_employees_data_mcp,
+    get_all_employees_salary_mcp,
+    get_all_employees_attendance_mcp,
 ]
 
 # Policy tool
@@ -98,19 +106,16 @@ PAYROLL_SYSTEM_PROMPT = """You are an intelligent HR and Payroll Assistant.
 
 The current demo year is 2026.
 
-You have access to the following tools. Use them autonomously to answer the user's question:
+You have access to the following MCP-based tools. Use them autonomously to answer the user's question:
 
-- get_employee_by_id(emp_id)          → Employee profile (salary components, bank details)
-- get_attendance(emp_id, month, year) → Attendance for a specific month
-- get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
-- get_all_attendance_for_employee(emp_id, year) → All attendance records for the year
+- get_employee_details_mcp(employee_id)          → Employee profile (salary components, bank details)
+- get_employee_attendance_mcp(employee_id, month, year) → Attendance for a specific month
+- get_employee_salary_mcp(employee_id, month, year)   → Salary breakdown for a specific month
 
 ## Decision Logic
-1. ALWAYS start by calling `get_employee_by_id` to get the employee's profile.
-2. If the user asks about a SPECIFIC month → call `get_attendance` then `get_salary_payment`.
-3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
-4. If attendance has no matching salary record, compute prorated salary:  base_salary × (present_days / total_days)
-5. Combine all retrieved data and give a clear, professional answer.
+1. ALWAYS start by calling `get_employee_details_mcp` to get the employee's profile.
+2. If the user asks about a SPECIFIC month → call `get_employee_attendance_mcp` and `get_employee_salary_mcp`.
+3. Combine all retrieved data and give a clear, professional answer.
 
 Be concise. Do not reveal raw tool outputs. Format numbers with ₹ prefix.
 """
@@ -155,16 +160,16 @@ ADMIN_SYSTEM_PROMPT = """You are an HR Admin Dashboard Assistant.
 
 The current demo year is 2026.
 
-You have access to the following tools. Use them to answer the admin's question:
+You have access to the following MCP-based tools. Use them to answer the admin's question:
 
-- get_all_employees_data()                          → Base info for all employees
-- admin_get_monthly_metrics(month, year)            → Attendance + salary metrics for all employees
+- get_all_employees_data_mcp()                          → Base info for all employees
+- get_all_employees_salary_mcp(month, year)             → Salary metrics for all employees
+- get_all_employees_attendance_mcp(month, year)         → Attendance metrics for all employees
 
 ## Decision Logic
-1. For questions about ALL employees' general info → call `get_all_employees_data`.
-2. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
-3. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
-4. Combine data and provide a clear, tabular summary when there are multiple employees.
+1. For questions about ALL employees' general info → call `get_all_employees_data_mcp`.
+2. For questions about a specific month's payroll/attendance → call `get_all_employees_salary_mcp` and `get_all_employees_attendance_mcp`.
+3. Combine data and provide a clear, tabular summary when there are multiple employees.
 
 Be concise and professional.
 """

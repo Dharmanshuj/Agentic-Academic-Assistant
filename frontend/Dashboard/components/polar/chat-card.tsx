@@ -120,7 +120,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
   }
 
   return (
-    <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md transition-all duration-300">
+    <div className="w-full max-w-5xl rounded-2xl border border-transparent bg-transparent p-6 transition-all duration-300">
       <div className="flex flex-col gap-6 items-start w-full">
         {/* Header - Only show if no messages */}
         {messages.length === 0 && (
@@ -135,19 +135,19 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
 
         {/* Chat Messages */}
         {messages.length > 0 && (
-          <div className="flex w-full flex-col gap-4 max-h-[50vh] overflow-y-auto pr-2 pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <div className="flex w-full flex-col gap-4 max-h-[50vh] overflow-y-auto pr-2 pb-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             {messages.map((m, i) => (
               <div key={i} className={`flex flex-col w-full ${m.role === "user" ? "items-end" : "items-start"}`}>
                 {m.role === "assistant" && (
                   <div className="flex items-center gap-2 mb-1">
                     <SnowflakeIcon className="h-4 w-4 text-sky-400" />
-                    <span className="text-xs text-white/60">Pulse AI</span>
+                    <span className="text-sm text-white">Pulse AI</span>
                   </div>
                 )}
                 <div
                   className={`px-4 py-2.5 rounded-2xl max-w-[85%] whitespace-pre-wrap ${m.role === "user"
-                    ? "bg-sky-500 text-white rounded-br-sm"
-                    : "bg-white/15 text-white/90 rounded-bl-sm border border-white/10"
+                    ? "bg-teal-600 text-white rounded-br-sm"
+                    : "bg-black/80 text-white/90 rounded-bl-sm border border-white/10"
                     }`}
                 >
                   {m.content ? (

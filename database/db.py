@@ -6,6 +6,6 @@ def get_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "localhost"),
         user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD"), # This is the missing piece!
-        database=os.getenv("DB_NAME")
+        password=os.getenv("DB_PASS"), # Matches the .env file
+        database=os.getenv("DB_NAME", "company")
     )
