@@ -36,3 +36,4 @@ langchain-google-genai
 mysql-connector-python
 argon2-cffi
 PyJWT
+httpx

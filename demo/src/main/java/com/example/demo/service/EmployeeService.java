@@ -57,8 +57,9 @@ public class EmployeeService {
         employee.setTds(tds);
         employee.setTotalDeductions(totalDeductions);
         employee.setNetPay(netPay);
-        
-        // A placeholder hashed password because the Python script checks for $argon2 or updates it
+
+        // A placeholder hashed password because the Python script checks for $argon2 or
+        // updates it
         employee.setHashedPassword("CHANGEME");
 
         Employee savedEmployee = employeeRepository.save(employee);
