@@ -1,113 +1,276 @@
-EMPLOYEE_SYSTEM_PROMPT = """\
-You are Pulse AI, an intelligent HR and Payroll assistant.
-RULES:
-1. NEVER guess or invent numbers...
-2. The employee's ID is embedded in the user message...
-...
-"""
-
-
-ADMIN_SYSTEM_PROMPT = """\
-You are Pulse AI, an intelligent HR Admin assistant with full company-wide data access.
-RULES:
-1. NEVER guess or invent numbers...
-2. For a list of all employees → call get_all_employees_data...
-...
-"""
-
 import os
-import asyncio
-from typing import TypedDict, Annotated, Literal
+import json
 import operator
+from typing import TypedDict, Annotated
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import create_react_agent
 
-# 1. New Import for MCP
-from langchain_mcp_adapters.client import MultiServerMCPClient
+# ── Tools ────────────────────────────────────────────────────────────────────
 from tools.document_tool import search_documents
+from tools.database_tool import (
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment,
+    get_all_employees_data,
+    admin_get_monthly_metrics,
+    get_all_attendance_for_employee,
+)
+from calculation.calculator import calculate_prorated_salary
 
-# ─────────────────────────────────────────────
-# State & Setup
-# ─────────────────────────────────────────────
-class AgentState(TypedDict):
-    messages: Annotated[list[BaseMessage], operator.add]
-    system_prompt: str
-    tools: list  # Store tools in state or bind them at runtime
-
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-lite", # Or your preferred version
+# ── LLM ──────────────────────────────────────────────────────────────────────
+_base_llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash-lite",
     google_api_key=os.environ.get("GEMINI_API_KEY"),
 )
 
-# ─────────────────────────────────────────────
-# Nodes (Modified for Dynamic Tools)
-# ─────────────────────────────────────────────
-async def call_model(state: AgentState):
-    # Bind the tools provided by the MCP Client to the LLM
-    llm_with_tools = llm.bind_tools(state["tools"])
-    system_msg = SystemMessage(content=state["system_prompt"])
-    response = await llm_with_tools.ainvoke([system_msg] + state["messages"])
-    return {"messages": [response]}
+# Payroll tools the agent may call
+PAYROLL_TOOLS = [
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment,
+    get_all_attendance_for_employee,
+]
 
-def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
-    last = state["messages"][-1]
-    if hasattr(last, "tool_calls") and last.tool_calls:
-        return "tools"
-    return "__end__"
+# Admin tools the agent may call
+ADMIN_TOOLS = [
+    get_all_employees_data,
+    admin_get_monthly_metrics,
+]
 
-# ─────────────────────────────────────────────
-# Graph Factory
-# ─────────────────────────────────────────────
-def create_agent_graph(all_tools):
+# Policy tool
+POLICY_TOOLS = [
+    search_documents,
+]
+
+# ── Shared State ──────────────────────────────────────────────────────────────
+class AgentState(TypedDict):
+    query: str
+    emp_id: str
+    final_answer: str
+    next_node: str
+    messages: Annotated[list, operator.add]
+
+
+# ── Supervisor ────────────────────────────────────────────────────────────────
+async def supervisor(state: AgentState):
+    """Routes the query to the correct specialist node."""
+    query = state["query"].lower()
+    recent_history = state.get("messages", [])[-4:]
+    history_text = "\n".join(
+        [f"{type(m).__name__}: {m.content[:150]}" for m in recent_history]
+    )
+
+    prompt = f"""
+You are an intelligent HR Agent Router.
+Analyze the user's query and categorize their intent into exactly ONE of the following categories:
+
+- policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, or benefits.
+- admin_node   : Requests to view data, salaries, or records for ALL employees or everyone.
+- payroll_node : Questions about the user's personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
+
+Recent Conversation History:
+{history_text}
+
+User Query: "{query}"
+
+Respond with ONLY the exact category name. No quotes, no extra text.
+"""
+    response = await _base_llm.ainvoke([HumanMessage(content=prompt)])
+    route = response.content.strip().strip('"').strip("'").lower()
+
+    valid_routes = ["policy_node", "admin_node", "payroll_node"]
+    if route in valid_routes:
+        return {"next_node": route}
+
+    # Fallback
+    if state["emp_id"] == "ADMIN":
+        return {"next_node": "admin_node"}
+    return {"next_node": "payroll_node"}
+
+
+# ── Agentic Payroll Node ──────────────────────────────────────────────────────
+PAYROLL_SYSTEM_PROMPT = """You are an intelligent HR and Payroll Assistant.
+
+The current demo year is 2026.
+
+You have access to the following tools. Use them autonomously to answer the user's question:
+
+- get_employee_by_id(emp_id)          → Employee profile (salary components, bank details)
+- get_attendance(emp_id, month, year) → Attendance for a specific month
+- get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
+- get_all_attendance_for_employee(emp_id, year) → All attendance records for the year
+
+## Decision Logic
+1. ALWAYS start by calling `get_employee_by_id` to get the employee's profile.
+2. If the user asks about a SPECIFIC month → call `get_attendance` then `get_salary_payment`.
+3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
+4. If attendance has no matching salary record, compute prorated salary:  base_salary × (present_days / total_days)
+5. Combine all retrieved data and give a clear, professional answer.
+
+Be concise. Do not reveal raw tool outputs. Format numbers with ₹ prefix.
+"""
+
+async def payroll_logic(state: AgentState):
+    """
+    Agentic payroll node: the LLM decides which tools to call and loops
+    until it has sufficient information to produce a final answer.
+    """
+    emp_id = state["emp_id"]
+
+    # Build the ReAct agent graph on-the-fly (lightweight, no extra state)
+    llm_with_tools = _base_llm.bind_tools(PAYROLL_TOOLS)
+    agent = create_react_agent(llm_with_tools, PAYROLL_TOOLS)
+
+    # Inject emp_id into the query so the LLM always knows whose data to fetch
+    enriched_query = f"[Employee ID: {emp_id}]\n\nUser question: {state['query']}"
+
+    messages = [
+        SystemMessage(content=PAYROLL_SYSTEM_PROMPT),
+        *state.get("messages", []),
+        HumanMessage(content=enriched_query),
+    ]
+
+    result = await agent.ainvoke({"messages": messages})
+
+    # The final AIMessage is the last message in the result
+    final_message = result["messages"][-1]
+    answer = final_message.content
+
+    return {
+        "final_answer": answer,
+        "messages": [
+            HumanMessage(content=state["query"]),
+            AIMessage(content=answer),
+        ],
+    }
+
+
+# ── Agentic Admin Node ────────────────────────────────────────────────────────
+ADMIN_SYSTEM_PROMPT = """You are an HR Admin Dashboard Assistant.
+
+The current demo year is 2026.
+
+You have access to the following tools. Use them to answer the admin's question:
+
+- get_all_employees_data()                          → Base info for all employees
+- admin_get_monthly_metrics(month, year)            → Attendance + salary metrics for all employees
+
+## Decision Logic
+1. For questions about ALL employees' general info → call `get_all_employees_data`.
+2. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
+3. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
+4. Combine data and provide a clear, tabular summary when there are multiple employees.
+
+Be concise and professional.
+"""
+
+async def admin_logic(state: AgentState):
+    """
+    Agentic admin node: only accessible by ADMIN. LLM chooses tools autonomously.
+    """
+    if state["emp_id"] != "ADMIN":
+        return {"final_answer": "Unauthorized Access. Only the ADMIN can query data for all employees."}
+
+    llm_with_tools = _base_llm.bind_tools(ADMIN_TOOLS)
+    agent = create_react_agent(llm_with_tools, ADMIN_TOOLS)
+
+    messages = [
+        SystemMessage(content=ADMIN_SYSTEM_PROMPT),
+        *state.get("messages", []),
+        HumanMessage(content=state["query"]),
+    ]
+
+    result = await agent.ainvoke({"messages": messages})
+    final_message = result["messages"][-1]
+    answer = final_message.content
+
+    return {
+        "final_answer": answer,
+        "messages": [
+            HumanMessage(content=state["query"]),
+            AIMessage(content=answer),
+        ],
+    }
+
+
+# ── Policy Node (RAG — no tool loop needed) ───────────────────────────────────
+async def policy_logic(state: AgentState):
+    """
+    Retrieves relevant HR policy documents via RAG and answers the question.
+    """
+    docs = search_documents.func(state["query"])
+
+    prompt = f"""You are an HR Policy Assistant. Use the retrieved policy documents below to answer the user's question.
+
+Documents:
+{docs}
+
+Question:
+{state['query']}
+
+Instructions:
+- Answer strictly based on the provided documents.
+- If the documents don't contain the answer, politely say so.
+"""
+    past_messages = state.get("messages", [])
+    response = await _base_llm.ainvoke(past_messages + [HumanMessage(content=prompt)])
+
+    return {
+        "final_answer": response.content,
+        "messages": [
+            HumanMessage(content=state["query"]),
+            AIMessage(content=response.content),
+        ],
+    }
+
+
+# ── Graph Construction ────────────────────────────────────────────────────────
+memory = MemorySaver()
+
+def create_graph():
     workflow = StateGraph(AgentState)
-    
-    # Pass the tools into the ToolNode
-    workflow.add_node("agent", call_model)
-    workflow.add_node("tools", ToolNode(all_tools))
 
-    workflow.set_entry_point("agent")
-    workflow.add_conditional_edges("agent", should_continue)
-    workflow.add_edge("tools", "agent")
+    workflow.add_node("supervisor", supervisor)
+    workflow.add_node("payroll_node", payroll_logic)
+    workflow.add_node("admin_node", admin_logic)
+    workflow.add_node("policy_node", policy_logic)
 
-    return workflow.compile(checkpointer=MemorySaver())
+    workflow.set_entry_point("supervisor")
 
-# ─────────────────────────────────────────────
-# Main Entry Point with MCP Context
-# ─────────────────────────────────────────────
+    workflow.add_conditional_edges(
+        "supervisor",
+        lambda state: state["next_node"],
+        {
+            "payroll_node": "payroll_node",
+            "admin_node": "admin_node",
+            "policy_node": "policy_node",
+        },
+    )
+    workflow.add_edge("payroll_node", END)
+    workflow.add_edge("admin_node", END)
+    workflow.add_edge("policy_node", END)
+
+    return workflow.compile(checkpointer=memory)
+
+
+# ── Entry Point ───────────────────────────────────────────────────────────────
 async def run_salary_agent(query: str, emp_id: str, session_id: str):
-    # Connect to the Spring Boot Server
-    async with MultiServerMCPClient({
-        "payroll_server": {
-            "url": "http://localhost:8080/mcp/sse",
-            "transport": "sse"
-        }
-    }) as mcp_client:
-        
-        # 2. Get Java Tools + Add local document tool
-        java_tools = mcp_client.get_tools()
-        all_tools = java_tools + [search_documents]
-        
-        # 3. Create graph with current tools
-        graph = create_agent_graph(all_tools)
-        
-        config = {"configurable": {"thread_id": session_id}}
-        system_prompt = ADMIN_SYSTEM_PROMPT if emp_id == "ADMIN" else EMPLOYEE_SYSTEM_PROMPT
-        
-        enriched_query = f"[Admin Query] {query}" if emp_id == "ADMIN" else f"[Employee ID: {emp_id}] {query}"
+    graph = create_graph()
+    initial_state = {
+        "query": query,
+        "emp_id": emp_id,
+        "final_answer": "",
+        "next_node": "",
+        "messages": [],
+    }
+    config = {"configurable": {"thread_id": session_id}}
 
-        initial_state = {
-            "messages": [HumanMessage(content=enriched_query)],
-            "system_prompt": system_prompt,
-            "tools": all_tools # Pass tools into state
-        }
-
-        async for event in graph.astream_events(initial_state, config=config, version="v2"):
-            if event.get("event") == "on_chat_model_stream":
-                chunk = event.get("data", {}).get("chunk")
-                if chunk and hasattr(chunk, "content") and chunk.content:
-                    if not (hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks):
-                        yield chunk.content
+    async for event in graph.astream(initial_state, config):
+        for node_name, output in event.items():
+            if "final_answer" in output:
+                yield output["final_answer"]

@@ -27,18 +27,36 @@ public class EmployeeService {
         employee.setDesignation(dto.getDesignation());
         employee.setBankName(dto.getBankName());
         employee.setAccountNo(dto.getAccountNo());
-        employee.setBasicSalary(dto.getBasicSalary());
-        employee.setHra(dto.getHra());
-        employee.setConveyance(dto.getConveyance());
-        employee.setMedical(dto.getMedical());
-        employee.setSpecial(dto.getSpecial());
-        employee.setGrossSalary(dto.getGrossSalary());
-        employee.setEpf(dto.getEpf());
-        employee.setHealthInsurance(dto.getHealthInsurance());
-        employee.setProfessionalTax(dto.getProfessionalTax());
-        employee.setTds(dto.getTds());
-        employee.setTotalDeductions(dto.getTotalDeductions());
-        employee.setNetPay(dto.getNetPay());
+        // Calculate Gross Salary
+        double basic = dto.getBasicSalary() != null ? dto.getBasicSalary() : 0.0;
+        double hra = dto.getHra() != null ? dto.getHra() : 0.0;
+        double conveyance = dto.getConveyance() != null ? dto.getConveyance() : 0.0;
+        double medical = dto.getMedical() != null ? dto.getMedical() : 0.0;
+        double special = dto.getSpecial() != null ? dto.getSpecial() : 0.0;
+        double grossSalary = basic + hra + conveyance + medical + special;
+
+        // Calculate Total Deductions
+        double epf = dto.getEpf() != null ? dto.getEpf() : 0.0;
+        double healthInsurance = dto.getHealthInsurance() != null ? dto.getHealthInsurance() : 0.0;
+        double professionalTax = dto.getProfessionalTax() != null ? dto.getProfessionalTax() : 0.0;
+        double tds = dto.getTds() != null ? dto.getTds() : 0.0;
+        double totalDeductions = epf + healthInsurance + professionalTax + tds;
+
+        // Calculate Net Pay
+        double netPay = grossSalary - totalDeductions;
+
+        employee.setBasicSalary(basic);
+        employee.setHra(hra);
+        employee.setConveyance(conveyance);
+        employee.setMedical(medical);
+        employee.setSpecial(special);
+        employee.setGrossSalary(grossSalary);
+        employee.setEpf(epf);
+        employee.setHealthInsurance(healthInsurance);
+        employee.setProfessionalTax(professionalTax);
+        employee.setTds(tds);
+        employee.setTotalDeductions(totalDeductions);
+        employee.setNetPay(netPay);
         
         // A placeholder hashed password because the Python script checks for $argon2 or updates it
         employee.setHashedPassword("CHANGEME");
