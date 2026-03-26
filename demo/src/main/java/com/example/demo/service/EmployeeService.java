@@ -56,4 +56,37 @@ public class EmployeeService {
 
         return savedEmployee;
     }
+
+    @Transactional
+    public Employee updateEmployeeSalary(String empno, Double newBasicSalary) {
+        Employee employee = employeeRepository.findById(empno)
+            .orElseThrow(() -> new RuntimeException("Employee not found"));
+        
+        employee.setBasicSalary(newBasicSalary);
+        
+        // Recalculate salary logic (Simplified for now, using the same ratios as before)
+        // basic: 50k, hra: 20k, conveyance: 3k, medical: 2k, special: 5k = 80k gross
+        // epf: 12% of basic (6k), health: 2k, pt: 200, tds: 10% of basic (5k) = 13.2k deductions
+        // net: 66.8k
+        
+        double basic = newBasicSalary;
+        employee.setHra(basic * 0.4);
+        employee.setConveyance(basic * 0.06);
+        employee.setMedical(basic * 0.04);
+        employee.setSpecial(basic * 0.1);
+        
+        double gross = basic + employee.getHra() + employee.getConveyance() + employee.getMedical() + employee.getSpecial();
+        employee.setGrossSalary(gross);
+        
+        employee.setEpf(basic * 0.12);
+        employee.setHealthInsurance(2000.0);
+        employee.setProfessionalTax(200.0);
+        employee.setTds(basic * 0.1);
+        
+        double deductions = employee.getEpf() + employee.getHealthInsurance() + employee.getProfessionalTax() + employee.getTds();
+        employee.setTotalDeductions(deductions);
+        employee.setNetPay(gross - deductions);
+        
+        return employeeRepository.save(employee);
+    }
 }
