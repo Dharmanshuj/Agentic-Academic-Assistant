@@ -67,6 +67,7 @@ public class EmployeeService {
         return savedEmployee;
     }
 
+    @SuppressWarnings("null")
     private void validateRegistration(EmployeeRegistrationDto dto) {
         if (dto.getEmpno() == null || dto.getEmpno().isBlank()) {
             throw new IllegalArgumentException("Employee number is required.");

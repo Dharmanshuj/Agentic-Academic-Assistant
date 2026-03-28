@@ -30,6 +30,7 @@ public class PayrollToolService {
     public Map<String, Object> get_employee_by_id(
             @ToolParam(description = "Employee ID (e.g. 'EMP001')") String empId) {
 
+        @SuppressWarnings("null")
         Optional<Employee> optEmp = employeeRepository.findById(empId);
         if (optEmp.isEmpty()) {
             return Map.of("error", "Employee not found.");
