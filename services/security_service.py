@@ -17,9 +17,21 @@ if not SECRET_KEY:
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
-        # Decode using the loaded SECRET_KEY
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return payload
+        empno = payload.get("empno") or payload.get("emp_id")
+        if not empno:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is missing employee number")
+
+        role = payload.get("role") or ("ADMIN" if empno == "ADMIN" else "EMPLOYEE")
+        name = payload.get("name") or payload.get("sub") or empno
+
+        return {
+            "empno": empno,
+            "emp_id": empno,
+            "name": name,
+            "role": role,
+            "token_claims": payload,
+        }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except jwt.InvalidTokenError:

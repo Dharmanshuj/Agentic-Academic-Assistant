@@ -15,4 +15,13 @@ def verify_password(plain_password, hashed_password):
 def create_access_token(empno: str, username: str):
     expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=expire_minutes)
-    return jwt.encode({"sub": username, "emp_id": empno, "exp": expire}, SECRET_KEY, algorithm="HS256")
+    role = "ADMIN" if empno == "ADMIN" else "EMPLOYEE"
+    payload = {
+        "sub": username,
+        "name": username,
+        "emp_id": empno,
+        "empno": empno,
+        "role": role,
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")

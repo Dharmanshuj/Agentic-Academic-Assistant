@@ -8,16 +8,23 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class DemoApplication {
 
 	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.configure()
-			.directory("src/main/resources")
-			.ignoreIfMissing()
-			.load();
-		
-		dotenv.entries().forEach(entry -> {
-			System.setProperty(entry.getKey(), entry.getValue());
-		});
+		loadDotenvDirectory("..");
+		loadDotenvDirectory("src/main/resources");
 
 		SpringApplication.run(DemoApplication.class, args);
+	}
+
+	private static void loadDotenvDirectory(String directory) {
+		Dotenv dotenv = Dotenv.configure()
+				.directory(directory)
+				.ignoreIfMissing()
+				.load();
+
+		dotenv.entries().forEach(entry -> {
+			if (System.getProperty(entry.getKey()) == null) {
+				System.setProperty(entry.getKey(), entry.getValue());
+			}
+		});
 	}
 
 }
