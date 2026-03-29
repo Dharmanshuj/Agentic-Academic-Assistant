@@ -12,6 +12,7 @@ from langgraph.prebuilt import create_react_agent
 # ── Tools (via Spring Boot MCP Server) ────────────────────────────────────────
 from tools.document_tool import search_documents
 from tools.mcp_tool import (
+    get_all_employees_salary_information,
     get_employee_by_id,
     get_attendance,
     get_salary_payment,
@@ -38,6 +39,7 @@ PAYROLL_TOOLS = [
 # Admin tools (served by Spring Boot via MCP)
 ADMIN_TOOLS = [
     get_all_employees_data,
+    get_all_employees_salary_information,
     admin_get_monthly_metrics,
 ]
 
@@ -68,7 +70,7 @@ async def supervisor(state: AgentState):
 You are an intelligent HR Agent Router.
 Analyze the user's query and categorize their intent into exactly ONE of the following categories:
 
-- policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, or benefits.
+- policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, benefits, or HOW salary components/calculations are determined.
 - admin_node   : Requests to view data, salaries, or records for ALL employees or everyone.
 - payroll_node : Questions about the user's personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
 
@@ -162,13 +164,15 @@ The current demo year is 2026.
 You have access to the following tools. Use them to answer the admin's question:
 
 - get_all_employees_data()                          → Base info for all employees
+- get_all_employees_salary_information()            → Comprehensive salary structure for all employees
 - admin_get_monthly_metrics(month, year)            → Attendance + salary metrics for all employees
 
 ## Decision Logic
-1. For questions about ALL employees' general info → call `get_all_employees_data`.
-2. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
-3. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
-4. Combine data and provide a clear, tabular summary when there are multiple employees.
+1. For questions about salary structure, salary breakdown, or compensation → call `get_all_employees_salary_information`.
+2. For questions about ALL employees' general info (name, dept, designation) → call `get_all_employees_data`.
+3. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
+4. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
+5. Combine data and provide a clear, tabular summary when there are multiple employees.
 
 Be concise and professional.
 """
@@ -205,7 +209,7 @@ async def admin_logic(state: AgentState):
 # ── Policy Node (RAG — no tool loop needed) ───────────────────────────────────
 async def policy_logic(state: AgentState):
     """
-    Retrieves relevant HR policy documents via RAG and answers the question.
+    Retrieves information on how the salary components are determined/calculated and relevant HR policy documents via RAG and answers the question.
     """
     docs = search_documents.func(state["query"])
 

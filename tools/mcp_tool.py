@@ -102,12 +102,16 @@ def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
 
 @tool
 def get_all_employees_data():
-    """Query data for all employees. ONLY allowed for ADMIN user."""
+    """Query basic details for all employees. ONLY allowed for ADMIN user."""
     return _run("get_all_employees_data", {})
 
+@tool
+def get_all_employees_salary_information():
+    """Admin tool to get comprehensive salary information for all employees. ONLY allowed for ADMIN user."""
+    return _run("get_all_employees_salary_information", {})
 
 @tool
 def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] = None):
-    """Admin tool to get attendance and salary payments for all employees across a given month."""
+    """Admin tool to get attendance and salary payments for all employees across a given month. ONLY allowed for ADMIN user."""
     args = {"month": month or 0, "year": year or 0}
     return _run("admin_get_monthly_metrics", args)

@@ -127,7 +127,7 @@ public class PayrollToolService {
     }
 
     // ── Tool 5: get_all_employees_data (ADMIN) ──────────────────────────────
-    @Tool(description = "Query data for all employees. Returns empno, name, dept, designation, and net_pay for every employee.")
+    @Tool(description = "Query data for all employees. Returns basic details for every employee.")
     public List<Map<String, Object>> get_all_employees_data() {
 
         List<Employee> employees = employeeRepository.findAll();
@@ -138,7 +138,45 @@ public class PayrollToolService {
             entry.put("name", e.getName());
             entry.put("dept", e.getDept());
             entry.put("designation", e.getDesignation());
-            entry.put("net_pay", e.getNetPay());
+            entry.put("workLocation", e.getWorkLocation());
+
+            entry.put("bankName", e.getBankName());
+            entry.put("accountNo", e.getAccountNo());
+
+            entry.put("basicSalary", e.getBasicSalary());
+            entry.put("isMetro", e.getIsMetro());
+            entry.put("netPay", e.getNetPay());
+
+            entry.put("hashedPassword", e.getHashedPassword());
+
+            result.add(entry);
+        }
+        return result;
+    }
+
+    @Tool(description = "Admin tool to get salary structure information for all employees")
+    public List<Map<String, Object>> get_all_employees_salary_information() {
+        List<Employee> employees = employeeRepository.findAll();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Employee e : employees) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("empno", e.getEmpno());
+            entry.put("name", e.getName());
+
+            entry.put("basicSalary", e.getBasicSalary());
+            entry.put("hra", e.getHra());
+            entry.put("conveyance", e.getConveyance());
+            entry.put("medical", e.getMedical());
+            entry.put("special", e.getSpecial());
+            entry.put("grossSalary", e.getGrossSalary());
+
+            entry.put("epf", e.getEpf());
+            entry.put("healthInsurance", e.getHealthInsurance());
+            entry.put("professionalTax", e.getProfessionalTax());
+            entry.put("tds", e.getTds());
+            entry.put("totalDeductions", e.getTotalDeductions());
+            entry.put("netPay", e.getNetPay());
+
             result.add(entry);
         }
         return result;
