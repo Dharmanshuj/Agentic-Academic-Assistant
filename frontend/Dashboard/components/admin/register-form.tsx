@@ -8,15 +8,19 @@ import { useRouter } from "next/navigation";
 export function RegisterEmployeeForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [workLocation, setWorkLocation] = useState("");
+  const [attendance, setAttendance] = useState({
+    totalDays: 0,
+    presentDays: 0,
+    month: "",
+    year: ""
+  });
   const [salary, setSalary] = useState({
     basicSalary: 0,
-    hra: 0,
     conveyance: 0,
     medical: 0,
     special: 0,
-    epf: 0,
     healthInsurance: 0,
-    professionalTax: 0,
     tds: 0
   });
 
@@ -28,50 +32,76 @@ export function RegisterEmployeeForm() {
     }));
   };
 
-  const grossSalary = salary.basicSalary + salary.hra + salary.conveyance + salary.medical + salary.special;
-  const totalDeductions = salary.epf + salary.healthInsurance + salary.professionalTax + salary.tds;
+  const handleAttendanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setAttendance(prev => ({
+      ...prev,
+      [name]: name === "month" || name === "year" ? value : parseInt(value || "0", 10) || 0
+    }));
+  };
+
+  const calculatedHra = salary.basicSalary * 0.4;
+  const calculatedEpf = salary.basicSalary * 0.12;
+  const resolvedConveyance = salary.conveyance > 0 ? salary.conveyance : salary.basicSalary * 0.05;
+  const resolvedMedical = salary.medical > 0 ? salary.medical : salary.basicSalary * 0.05;
+  const resolvedSpecial = salary.special > 0 ? salary.special : salary.basicSalary * 0.1;
+  const grossSalary = salary.basicSalary + calculatedHra + resolvedConveyance + resolvedMedical + resolvedSpecial;
+  const professionalTax = PROFESSIONAL_TAX_BY_LOCATION[workLocation] ?? 0;
+  const totalDeductions = calculatedEpf + salary.healthInsurance + professionalTax + salary.tds;
   const netPay = grossSalary - totalDeductions;
+  const absentDays = Math.max(attendance.totalDays - attendance.presentDays, 0);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
+    const data = Object.fromEntries(formData.entries()) as Record<string, FormDataEntryValue | boolean>;
     
-    // Ensure calculated values are included in the submission
-    data.grossSalary = grossSalary.toString();
-    data.totalDeductions = totalDeductions.toString();
-    data.netPay = netPay.toString();
+    data.workLocation = workLocation;
+    data.absentDays = absentDays.toString();
 
     try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        throw new Error("Admin session not found. Please log in again.");
+      }
+
       const response = await fetch("http://localhost:8080/api/employees/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Basic " + window.btoa("admin:admin"),
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) throw new Error("Failed to register employee");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to register employee");
+      }
 
       toast.success("Employee registered successfully!");
       (e.target as HTMLFormElement).reset();
       setSalary({
         basicSalary: 0,
-        hra: 0,
         conveyance: 0,
         medical: 0,
         special: 0,
-        epf: 0,
         healthInsurance: 0,
-        professionalTax: 0,
         tds: 0
       });
+      setAttendance({
+        totalDays: 0,
+        presentDays: 0,
+        month: "",
+        year: ""
+      });
+      setWorkLocation("");
       router.push("/dashboard");
     } catch (error) {
-      toast.error("Registration failed. Please ensure the backend is running.");
+      const message = error instanceof Error ? error.message : "Registration failed. Please ensure the backend is running.";
+      toast.error(message);
       console.error(error);
     } finally {
       setLoading(false);
@@ -90,10 +120,37 @@ export function RegisterEmployeeForm() {
         <div>
           <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Profile Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-sm font-medium">Employee No.</label><input name="empno" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="EMP123" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Full Name</label><input name="name" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="John Doe" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Department</label><input name="dept" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="Engineering" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Designation</label><input name="designation" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="Software Engineer" /></div>
+            <div className="space-y-1.5"><label htmlFor="empno" className="text-sm font-medium">Employee No.</label><input id="empno" name="empno" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="EMP123" /></div>
+            <div className="space-y-1.5"><label htmlFor="name" className="text-sm font-medium">Full Name</label><input id="name" name="name" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="John Doe" /></div>
+            <div className="space-y-1.5"><label htmlFor="dept" className="text-sm font-medium">Department</label><input id="dept" name="dept" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="Engineering" /></div>
+            <div className="space-y-1.5"><label htmlFor="designation" className="text-sm font-medium">Designation</label><input id="designation" name="designation" required className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-transparent" placeholder="Software Engineer" /></div>
+          </div>
+          <div className="mt-4 space-y-1.5">
+              <label htmlFor="workLocation" className="text-sm font-medium">Work Location</label>
+            <div className="relative">
+              <select
+                id="workLocation"
+                name="workLocation"
+                required
+                value={workLocation}
+                onChange={(e) => setWorkLocation(e.target.value)}
+                className="block w-full appearance-none rounded-md border border-zinc-300 bg-white px-3 py-2 pr-10 text-sm text-black shadow-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                aria-describedby="workLocationHelp"
+              >
+                <option value="" disabled>Select work location</option>
+                <option value="gurugram">Gurugram</option>
+                <option value="bangalore">Bangalore</option>
+                <option value="delhi">Delhi</option>
+                <option value="noida">Noida</option>
+                <option value="pune">Pune</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-zinc-500">
+                ▼
+              </div>
+            </div>
+            <p id="workLocationHelp" className="text-xs text-zinc-500">
+              Professional Tax is calculated automatically from the selected location.
+            </p>
           </div>
         </div>
 
@@ -108,20 +165,26 @@ export function RegisterEmployeeForm() {
 
         {/* Salary Details */}
         <div>
-          <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Salary & Tax Breakdowns</h3>
+          <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Salary Inputs</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-1.5"><label className="text-sm font-medium">Basic Salary</label><input name="basicSalary" type="number" step="0.01" required value={salary.basicSalary} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">HRA</label><input name="hra" type="number" step="0.01" required value={salary.hra} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Conveyance</label><input name="conveyance" type="number" step="0.01" required value={salary.conveyance} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Medical</label><input name="medical" type="number" step="0.01" required value={salary.medical} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Special</label><input name="special" type="number" step="0.01" required value={salary.special} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Gross Salary</label><input name="grossSalary" type="number" step="0.01" readOnly value={grossSalary} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">EPF</label><input name="epf" type="number" step="0.01" required value={salary.epf} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Work Location</label>
+              <div className="input-field w-full px-3 py-2 text-sm text-black border border-zinc-200 rounded-md bg-zinc-50 font-semibold">
+                {workLocation ? WORK_LOCATION_LABELS[workLocation] : "Select work location above"}
+              </div>
+            </div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Conveyance</label><input name="conveyance" type="number" step="0.01" value={salary.conveyance} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="Optional, auto-calculated if empty" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Medical</label><input name="medical" type="number" step="0.01" value={salary.medical} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="Optional, auto-calculated if empty" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Special</label><input name="special" type="number" step="0.01" value={salary.special} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="Optional, auto-calculated if empty" /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Health Insur.</label><input name="healthInsurance" type="number" step="0.01" required value={salary.healthInsurance} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Prof. Tax</label><input name="professionalTax" type="number" step="0.01" required value={salary.professionalTax} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">TDS</label><input name="tds" type="number" step="0.01" required value={salary.tds} onChange={handleSalaryChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="0" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Total Ded.</label><input name="totalDeductions" type="number" step="0.01" readOnly value={totalDeductions} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Net Pay</label><input name="netPay" type="number" step="0.01" readOnly value={netPay} className="input-field w-full px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold text-green-600" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Auto HRA</label><input type="number" step="0.01" readOnly value={calculatedHra} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Auto EPF</label><input type="number" step="0.01" readOnly value={calculatedEpf} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Professional Tax</label><input type="number" step="0.01" readOnly value={professionalTax} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Gross Salary</label><input type="number" step="0.01" readOnly value={grossSalary} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Total Ded.</label><input type="number" step="0.01" readOnly value={totalDeductions} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Net Pay</label><input type="number" step="0.01" readOnly value={netPay} className="input-field w-full px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold text-green-600" placeholder="Calculated automatically" /></div>
           </div>
         </div>
 
@@ -129,11 +192,11 @@ export function RegisterEmployeeForm() {
         <div>
           <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Initial Attendance Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="space-y-1.5"><label className="text-sm font-medium">Total Days</label><input name="totalDays" type="number" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="30" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Present</label><input name="presentDays" type="number" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="28" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Absent</label><input name="absentDays" type="number" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="2" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Month</label><input name="month" type="number" min="1" max="12" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="10" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Year</label><input name="year" type="number" required className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="2023" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Total Days</label><input name="totalDays" type="number" required value={attendance.totalDays || ""} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="30" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Present</label><input name="presentDays" type="number" required value={attendance.presentDays || ""} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="28" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Absent</label><input type="number" readOnly value={absentDays} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Month</label><input name="month" type="number" min="1" max="12" required value={attendance.month} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="10" /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Year</label><input name="year" type="number" required value={attendance.year} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="2023" /></div>
           </div>
         </div>
 
@@ -148,3 +211,19 @@ export function RegisterEmployeeForm() {
     </div>
   );
 }
+
+const PROFESSIONAL_TAX_BY_LOCATION: Record<string, number> = {
+  gurugram: 0,
+  bangalore: 250,
+  delhi: 200,
+  noida: 150,
+  pune: 200,
+};
+
+const WORK_LOCATION_LABELS: Record<string, string> = {
+  gurugram: "Gurugram",
+  bangalore: "Bangalore",
+  delhi: "Delhi",
+  noida: "Noida",
+  pune: "Pune",
+};

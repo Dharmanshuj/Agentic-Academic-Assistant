@@ -4,7 +4,7 @@ from database.db import get_connection
 conn = get_connection()
 cursor = conn.cursor()
 
-cursor.execute("SELECT empno, hashed_password FROM employees")
+cursor.execute("SELECT empno, hashed_password FROM employee")
 rows = cursor.fetchall()
 
 for empno, plain_pw in rows:
@@ -12,7 +12,7 @@ for empno, plain_pw in rows:
         hashed = hash_password(plain_pw)
 
         cursor.execute(
-            "UPDATE employees SET hashed_password = %s WHERE empno = %s",
+            "UPDATE employee SET hashed_password = %s WHERE empno = %s",
             (hashed, empno)
         )
 

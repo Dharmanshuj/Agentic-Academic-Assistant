@@ -20,7 +20,7 @@ def get_all_employees_data() -> list:
     cursor = conn.cursor()
     cursor.execute("""
         SELECT empno, name, dept, designation, net_pay
-        FROM employees
+        FROM employee
     """)
     rows = cursor.fetchall()
     records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
@@ -43,26 +43,26 @@ def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] =
     
     if month and year:
         query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.inhand_net_pay, a.month, a.year
-            FROM employees e
+            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
+            FROM employee e
             LEFT JOIN attendance a ON e.empno = a.empno AND a.month = %s AND a.year = %s
-            LEFT JOIN salary_payments s ON a.id = s.attendance_id
+            LEFT JOIN salary_payment s ON a.id = s.attendance_id
         """
         cursor.execute(query, (month, year))
     elif year:
         query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.inhand_net_pay, a.month, a.year
-            FROM employees e
+            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
+            FROM employee e
             LEFT JOIN attendance a ON e.empno = a.empno AND a.year = %s
-            LEFT JOIN salary_payments s ON a.id = s.attendance_id
+            LEFT JOIN salary_payment s ON a.id = s.attendance_id
         """
         cursor.execute(query, (year,))
     else:
         query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.inhand_net_pay, a.month, a.year
-            FROM employees e
+            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
+            FROM employee e
             LEFT JOIN attendance a ON e.empno = a.empno AND a.year = 2026
-            LEFT JOIN salary_payments s ON a.id = s.attendance_id
+            LEFT JOIN salary_payment s ON a.id = s.attendance_id
         """
         cursor.execute(query)
             
@@ -99,8 +99,25 @@ def get_employee_by_id(emp_id: str) -> dict:
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT *
-        FROM employees
+        SELECT
+            name,
+            dept,
+            designation,
+            bank_name,
+            account_no,
+            basic_salary,
+            hra,
+            conveyance,
+            medical,
+            special,
+            gross_salary,
+            epf,
+            health_insurance,
+            professional_tax,
+            tds,
+            total_deductions,
+            net_pay
+        FROM employee
         WHERE empno = %s
         """,
         (emp_id,)
@@ -111,23 +128,24 @@ def get_employee_by_id(emp_id: str) -> dict:
         return {"error": "Employee not found."}
 
     record = {
-        "name": r[1],
-        "department": r[2],
-        "designation": r[3],
-        "bank_name": r[4],
-        "account_no": r[5],
-        "basic_salary": r[6],
-        "hra": r[7],
-        "conveyance": r[8],
-        "medical": r[9],
-        "special": r[10],
-        "gross_salary": r[11],
-        "epf": r[12],
-        "health_insurance": r[13],
-        "professional_tax": r[14],
-        "tds": r[15],
-        "total_deductions": r[16],
-        "net_pay": r[17]
+        "name": r[0],
+        "department": r[1],
+        "designation": r[2],
+        "bank_name": r[3],
+        "account_no": r[4],
+        "basic_salary": r[5],
+        "hra": r[6],
+        "conveyance": r[7],
+        "medical": r[8],
+        "special": r[9],
+        "gross_salary": r[10],
+        "epf": r[11],
+        "health_insurance": r[12],
+        "professional_tax": r[13],
+        "tds": r[14],
+        "total_deductions": r[15],
+        "net_pay": r[16]
+
     }
 
     record = filter_records([record])[0]
@@ -201,8 +219,8 @@ def get_salary_payment(attendance_id: int) -> dict:
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT inhand_net_pay
-        FROM salary_payments
+        SELECT final_salary
+        FROM salary_payment
         WHERE attendance_id = %s
         """,
         (attendance_id,)

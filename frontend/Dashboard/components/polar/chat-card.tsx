@@ -34,14 +34,11 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
   const handleSubmit = async (query: string) => {
     if (!query.trim() || isLoading) return
 
-    // 1. Add user message
-    const newMessages: Message[] = [...messages, { role: "user", content: query }]
-    setMessages(newMessages)
     setInputValue("")
     setIsLoading(true)
 
-    // 2. Add empty assistant message placeholder
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+    // Add user message and assistant placeholder in one atomic update
+    setMessages((prev) => [...prev, { role: "user", content: query }, { role: "assistant", content: "" }])
 
     try {
       const token = localStorage.getItem("access_token")
@@ -86,22 +83,49 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
                 const parsed = JSON.parse(dataStr)
                 const text = parsed.text || ""
 
-                // Append text to the last assistant message
+                // Append text to the current assistant message
                 setMessages((prev) => {
+                  if (prev.length === 0) return prev
                   const newMsgs = [...prev]
-                  const lastMsg = { ...newMsgs[newMsgs.length - 1] } // Clone the object
+                  const lastMsg = { ...newMsgs[newMsgs.length - 1] }
                   if (lastMsg.role === "assistant") {
                     lastMsg.content += text
+                    newMsgs[newMsgs.length - 1] = lastMsg
                   }
-                  newMsgs[newMsgs.length - 1] = lastMsg
                   return newMsgs
                 })
               } catch (e) {
-                // If it's old non-JSON data holding over in the stream or cache, parse raw optionally
                 console.error("SSE JSON parse error:", e)
               }
             }
           }
+        }
+
+        if (done) {
+          // final partial message flush in case the server omitted trailing delimiter
+          const trimmed = buffer.trim()
+          if (trimmed && trimmed.startsWith("data: ")) {
+            const dataStr = trimmed.replace("data: ", "")
+            try {
+              const parsed = JSON.parse(dataStr)
+              const text = parsed.text || ""
+              if (text) {
+                setMessages((prev) => {
+                  if (prev.length === 0) return prev
+                  const newMsgs = [...prev]
+                  const lastMsg = { ...newMsgs[newMsgs.length - 1] }
+                  if (lastMsg.role === "assistant") {
+                    lastMsg.content += text
+                    newMsgs[newMsgs.length - 1] = lastMsg
+                  }
+                  return newMsgs
+                })
+              }
+            } catch (e) {
+              console.error("SSE final buffer parse error:", e)
+            }
+          }
+          buffer = ""
         }
       }
     } catch (error) {
@@ -109,13 +133,24 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
       setMessages((prev) => {
         const newMsgs = [...prev]
         const lastMsg = newMsgs[newMsgs.length - 1]
-        if (lastMsg.role === "assistant" && !lastMsg.content) {
+        if (lastMsg?.role === "assistant" && !lastMsg.content) {
           lastMsg.content = "Sorry, I encountered an error connecting to the server."
+          newMsgs[newMsgs.length - 1] = lastMsg
         }
         return newMsgs
       })
     } finally {
       setIsLoading(false)
+      setMessages((prev) => {
+        if (prev.length === 0) return prev
+        const newMsgs = [...prev]
+        const lastMsg = { ...newMsgs[newMsgs.length - 1] }
+        if (lastMsg.role === "assistant" && lastMsg.content.trim() === "") {
+          lastMsg.content = "No response received yet. Please try again."
+          newMsgs[newMsgs.length - 1] = lastMsg
+        }
+        return newMsgs
+      })
     }
   }
 

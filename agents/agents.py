@@ -10,23 +10,16 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
-# ── Tools ────────────────────────────────────────────────────────────────────
+# ── Tools (via Spring Boot MCP Server) ────────────────────────────────────────
 from tools.document_tool import search_documents
-from tools.database_tool import (
+from tools.mcp_tool import (
+    get_all_employees_salary_information,
     get_employee_by_id,
     get_attendance,
     get_salary_payment,
     get_all_employees_data,
     admin_get_monthly_metrics,
     get_all_attendance_for_employee,
-)
-from tools.mcp_tool import (
-    get_employee_details_mcp,
-    get_employee_attendance_mcp,
-    get_employee_salary_mcp,
-    get_all_employees_data_mcp,
-    get_all_employees_salary_mcp,
-    get_all_employees_attendance_mcp,
 )
 from calculation.calculator import calculate_prorated_salary
 
@@ -36,18 +29,19 @@ _base_llm = ChatGoogleGenerativeAI(
     google_api_key=os.environ.get("GEMINI_API_KEY"),
 )
 
-# Payroll tools the agent may call (now using MCP)
+# Payroll tools (served by Spring Boot via MCP)
 PAYROLL_TOOLS = [
-    get_employee_details_mcp,
-    get_employee_attendance_mcp,
-    get_employee_salary_mcp,
+    get_employee_by_id,
+    get_attendance,
+    get_salary_payment,
+    get_all_attendance_for_employee,
 ]
 
-# Admin tools the agent may call (now using MCP)
+# Admin tools (served by Spring Boot via MCP)
 ADMIN_TOOLS = [
-    get_all_employees_data_mcp,
-    get_all_employees_salary_mcp,
-    get_all_employees_attendance_mcp,
+    get_all_employees_data,
+    get_all_employees_salary_information,
+    admin_get_monthly_metrics,
 ]
 
 # Policy tool
@@ -77,7 +71,7 @@ async def supervisor(state: AgentState):
 You are an intelligent HR Agent Router.
 Analyze the user's query and categorize their intent into exactly ONE of the following categories:
 
-- policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, or benefits.
+- policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, benefits, or HOW salary components/calculations are determined.
 - admin_node   : Requests to view data, salaries, or records for ALL employees or everyone.
 - payroll_node : Questions about the user's personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
 
@@ -106,16 +100,20 @@ PAYROLL_SYSTEM_PROMPT = """You are an intelligent HR and Payroll Assistant.
 
 The current demo year is 2026.
 
-You have access to the following MCP-based tools. Use them autonomously to answer the user's question:
+You have access to the following tools. Use them autonomously to answer the user's question:
 
-- get_employee_details_mcp(employee_id)          → Employee profile (salary components, bank details)
-- get_employee_attendance_mcp(employee_id, month, year) → Attendance for a specific month
-- get_employee_salary_mcp(employee_id, month, year)   → Salary breakdown for a specific month
+- get_employee_by_id(emp_id)          → Employee profile (salary components, bank details)
+- get_attendance(emp_id, month, year) → Attendance for a specific month
+- get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
+- get_all_attendance_for_employee(emp_id, year) → All attendance records for the year
 
 ## Decision Logic
-1. ALWAYS start by calling `get_employee_details_mcp` to get the employee's profile.
-2. If the user asks about a SPECIFIC month → call `get_employee_attendance_mcp` and `get_employee_salary_mcp`.
-3. Combine all retrieved data and give a clear, professional answer.
+0. The authenticated employee ID is already provided in the conversation context. Never ask the user to provide their employee ID again.
+1. ALWAYS start by calling `get_employee_by_id` to get the employee's profile.
+2. If the user asks about a SPECIFIC month → call `get_attendance` then `get_salary_payment`.
+3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
+4. If attendance has no matching salary record, compute prorated salary:  base_salary × (present_days / total_days)
+5. Combine all retrieved data and give a clear, professional answer.
 
 Be concise. Do not reveal raw tool outputs. Format numbers with ₹ prefix.
 """
@@ -132,7 +130,11 @@ async def payroll_logic(state: AgentState):
     agent = create_react_agent(llm_with_tools, PAYROLL_TOOLS)
 
     # Inject emp_id into the query so the LLM always knows whose data to fetch
-    enriched_query = f"[Employee ID: {emp_id}]\n\nUser question: {state['query']}"
+    enriched_query = (
+        f"[Authenticated Employee ID: {emp_id}]\n"
+        "Use this employee ID for payroll tools. Do not ask the user to provide it.\n\n"
+        f"User question: {state['query']}"
+    )
 
     messages = [
         SystemMessage(content=PAYROLL_SYSTEM_PROMPT),
@@ -160,16 +162,18 @@ ADMIN_SYSTEM_PROMPT = """You are an HR Admin Dashboard Assistant.
 
 The current demo year is 2026.
 
-You have access to the following MCP-based tools. Use them to answer the admin's question:
+You have access to the following tools. Use them to answer the admin's question:
 
-- get_all_employees_data_mcp()                          → Base info for all employees
-- get_all_employees_salary_mcp(month, year)             → Salary metrics for all employees
-- get_all_employees_attendance_mcp(month, year)         → Attendance metrics for all employees
+- get_all_employees_data()                          → Base info for all employees
+- get_all_employees_salary_information()            → Comprehensive salary structure for all employees
+- admin_get_monthly_metrics(month, year)            → Attendance + salary metrics for all employees
 
 ## Decision Logic
-1. For questions about ALL employees' general info → call `get_all_employees_data_mcp`.
-2. For questions about a specific month's payroll/attendance → call `get_all_employees_salary_mcp` and `get_all_employees_attendance_mcp`.
-3. Combine data and provide a clear, tabular summary when there are multiple employees.
+1. For questions about salary structure, salary breakdown, or compensation → call `get_all_employees_salary_information`.
+2. For questions about ALL employees' general info (name, dept, designation) → call `get_all_employees_data`.
+3. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
+4. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
+5. Combine data and provide a clear, tabular summary when there are multiple employees.
 
 Be concise and professional.
 """
@@ -206,7 +210,7 @@ async def admin_logic(state: AgentState):
 # ── Policy Node (RAG — no tool loop needed) ───────────────────────────────────
 async def policy_logic(state: AgentState):
     """
-    Retrieves relevant HR policy documents via RAG and answers the question.
+    Retrieves information on how the salary components are determined/calculated and relevant HR policy documents via RAG and answers the question.
     """
     docs = search_documents.func(state["query"])
 

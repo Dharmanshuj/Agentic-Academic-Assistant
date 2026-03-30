@@ -39,7 +39,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     users_db = conn.cursor()
 
     users_db.execute(
-        "SELECT empno, name, hashed_password FROM employees WHERE empno = %s",
+        "SELECT empno, name, hashed_password FROM employee WHERE empno = %s",
         (credentials.username,)
     )
 
@@ -82,11 +82,14 @@ async def ask_payroll_stream(
     # if request.employee_id != user.get("empno"):
     #     raise HTTPException(status_code=403, detail="Unauthorized access to this employee ID")
 
-    # By using their emp_id as their session_id, LangGraph gives them permanent continuous chatbot memory!
-    session_id = user.get("emp_id")
+    empno = user.get("empno")
+    if not empno:
+        raise HTTPException(status_code=401, detail="Unable to determine employee number from token")
+
+    session_id = empno
     
     async def stream_generator():
-        async for chunk in run_salary_agent(request.query, user.get("emp_id"), session_id):
+        async for chunk in run_salary_agent(request.query, empno, session_id):
             payload = json.dumps({"text": chunk})
             yield f"data: {payload}\n\n"
 
