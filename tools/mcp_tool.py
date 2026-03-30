@@ -13,6 +13,7 @@ from typing import Optional
 from langchain.tools import tool
 from mcp.client.streamable_http import streamable_http_client
 from mcp.client.session import ClientSession
+from langchain_core.runnables.config import RunnableConfig
 
 
 # ── Spring Boot MCP Server URL ───────────────────────────────────────────────
@@ -72,15 +73,20 @@ def _run(name: str, args: dict) -> dict:
 # ── Payroll Tools ────────────────────────────────────────────────────────────
 
 @tool
-def get_employee_by_id(emp_id: str):
-    """Query employee by ID and return sanitized JSON record.
-    emp_id is taken as input which is str and is employee id"""
+def get_employee_by_id(config: RunnableConfig):
+    """Query your employee profile and return sanitized JSON record. Do not pass any arguments."""
+    emp_id = config.get("configurable", {}).get("emp_id")
+    if not emp_id:
+        return json.dumps({"error": "Employee ID not found in context."})
     return _run("get_employee_by_id", {"empId": emp_id})
 
 
 @tool
-def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int] = None):
-    """Get attendance for employee for a specific month or year."""
+def get_attendance(config: RunnableConfig, month: Optional[int] = None, year: Optional[int] = None):
+    """Get your attendance for a specific month or year."""
+    emp_id = config.get("configurable", {}).get("emp_id")
+    if not emp_id:
+        return json.dumps({"error": "Employee ID not found in context."})
     args = {"empId": emp_id, "month": month or 0, "year": year or 0}
     return _run("get_attendance", args)
 
@@ -92,8 +98,11 @@ def get_salary_payment(attendance_id: int):
 
 
 @tool
-def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
-    """Get all attendance records for an employee across all months for a specific year."""
+def get_all_attendance_for_employee(config: RunnableConfig, year: Optional[int] = None):
+    """Get all your attendance records across all months for a specific year."""
+    emp_id = config.get("configurable", {}).get("emp_id")
+    if not emp_id:
+        return json.dumps({"error": "Employee ID not found in context."})
     args = {"empId": emp_id, "year": year or 0}
     return _run("get_all_attendance_for_employee", args)
 

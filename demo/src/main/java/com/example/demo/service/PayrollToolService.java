@@ -25,6 +25,13 @@ public class PayrollToolService {
     @Autowired
     private SalaryPaymentRepository salaryPaymentRepository;
 
+    private String maskAccountNo(String accountNo) {
+        if (accountNo == null || accountNo.length() <= 4) {
+            return accountNo;
+        }
+        return "*".repeat(accountNo.length() - 4) + accountNo.substring(accountNo.length() - 4);
+    }
+
     // ── Tool 1: get_employee_by_id ──────────────────────────────────────────
     @Tool(description = "Query employee by ID and return profile with salary components, bank details, deductions, and net pay.")
     public Map<String, Object> get_employee_by_id(
@@ -42,7 +49,7 @@ public class PayrollToolService {
         record.put("department", e.getDept());
         record.put("designation", e.getDesignation());
         record.put("bank_name", e.getBankName());
-        record.put("account_no", e.getAccountNo());
+        record.put("account_no", maskAccountNo(e.getAccountNo()));
         record.put("basic_salary", e.getBasicSalary());
         record.put("hra", e.getHra());
         record.put("conveyance", e.getConveyance());
