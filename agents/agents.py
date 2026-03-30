@@ -6,6 +6,7 @@ from typing import TypedDict, Annotated
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
@@ -101,13 +102,12 @@ The current demo year is 2026.
 
 You have access to the following tools. Use them autonomously to answer the user's question:
 
-- get_employee_by_id(emp_id)          → Employee profile (salary components, bank details)
-- get_attendance(emp_id, month, year) → Attendance for a specific month
+- get_employee_by_id()                → Employee profile (salary components, bank details)
+- get_attendance(month, year)         → Attendance for a specific month
 - get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
-- get_all_attendance_for_employee(emp_id, year) → All attendance records for the year
+- get_all_attendance_for_employee(year) → All attendance records for the year
 
 ## Decision Logic
-0. The authenticated employee ID is already provided in the conversation context. Never ask the user to provide their employee ID again.
 1. ALWAYS start by calling `get_employee_by_id` to get the employee's profile.
 2. If the user asks about a SPECIFIC month → call `get_attendance` then `get_salary_payment`.
 3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
@@ -128,12 +128,8 @@ async def payroll_logic(state: AgentState):
     llm_with_tools = _base_llm.bind_tools(PAYROLL_TOOLS)
     agent = create_react_agent(llm_with_tools, PAYROLL_TOOLS)
 
-    # Inject emp_id into the query so the LLM always knows whose data to fetch
-    enriched_query = (
-        f"[Authenticated Employee ID: {emp_id}]\n"
-        "Use this employee ID for payroll tools. Do not ask the user to provide it.\n\n"
-        f"User question: {state['query']}"
-    )
+    # Note: emp_id is injected via the graph config so tools can read it automatically.
+    enriched_query = f"User question: {state['query']}"
 
     messages = [
         SystemMessage(content=PAYROLL_SYSTEM_PROMPT),
@@ -276,7 +272,7 @@ async def run_salary_agent(query: str, emp_id: str, session_id: str):
         "next_node": "",
         "messages": [],
     }
-    config = {"configurable": {"thread_id": session_id}}
+    config = {"configurable": {"thread_id": session_id, "emp_id": emp_id}}
 
     async for event in graph.astream(initial_state, config):
         for node_name, output in event.items():
