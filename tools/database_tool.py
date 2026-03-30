@@ -1,13 +1,13 @@
 from langchain.tools import tool
 from typing import Optional
-
+ 
 from database.db import get_connection
-
+ 
 from security.validator import validate_query
 from security.filter import filter_records
 from security.masking import apply_masking
 from security.audit_logger import log_tool_usage, log_security_event
-
+ 
 @tool
 def get_all_employees_data():
     """Query data for all employees. ONLY allowed for ADMIN user."""
@@ -21,14 +21,13 @@ def get_all_employees_data():
     records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
     conn.close()
     return records
-
-
+ 
+ 
 @tool
 def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] = None):
     """Admin tool to get attendance and salary payments for all employees across a given month."""
     conn = get_connection()
     cursor = conn.cursor()
-    
     # If no month/year is specified, fetch the most recent global month deployed
     if month and year:
         query = """
@@ -54,9 +53,7 @@ def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] =
             LEFT JOIN salary_payment s ON a.id = s.attendance_id
         """
         cursor.execute(query)
-            
     rows = cursor.fetchall()
-    
     records = []
     for r in rows:
         records.append({
@@ -71,15 +68,15 @@ def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] =
         })
     conn.close()
     return records
-
+ 
 @tool
 def get_employee_by_id(emp_id: str):
     """Query employee by ID and return sanitized JSON record.
     emp_id is taken as input which is str and is employee id"""
-
+ 
     conn = get_connection()
     cursor = conn.cursor()
-
+ 
     cursor.execute(
         """
         SELECT
@@ -105,13 +102,13 @@ def get_employee_by_id(emp_id: str):
         """,
         (emp_id,)
     )
-
+ 
     r = cursor.fetchone()
-
+ 
     if not r:
         log_security_event("Unauthorized access attempt to employee data", details={"emp_id": emp_id})
         return "Employee not found."
-
+ 
     record = {
         "name": r[0],
         "department": r[1],
@@ -130,20 +127,20 @@ def get_employee_by_id(emp_id: str):
         "tds": r[14],
         "total_deductions": r[15],
         "net_pay": r[16]
-
+ 
     }
-
+ 
     #record = validate_query(record)
     record = filter_records([record])[0]
-
+ 
     record = apply_masking(record)
-
+ 
     # log_tool_usage("query_employee_by_id", details={"emp_id": emp_id})
-
+ 
     conn.close()
-
+ 
     return record
-
+ 
 @tool
 def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int] = None):
     """
@@ -151,7 +148,7 @@ def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int]
     """
     conn = get_connection()
     cursor = conn.cursor()
-
+ 
     if month and year:
         cursor.execute(
             """
@@ -172,13 +169,13 @@ def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int]
             """,
             (emp_id,)
         )
-
+ 
     r = cursor.fetchone()
     conn.close()
-
+ 
     if not r:
         return None
-
+ 
     return {
         "attendance_id": r[0],
         "total_days": r[1],
@@ -187,7 +184,6 @@ def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int]
         "month_recorded": r[4],
         "year_recorded": r[5]
     }
-    
 @tool
 def get_salary_payment(attendance_id: int):
     """
@@ -195,7 +191,7 @@ def get_salary_payment(attendance_id: int):
     """
     conn = get_connection()
     cursor = conn.cursor()
-
+ 
     cursor.execute(
         """
         SELECT final_salary
@@ -204,17 +200,17 @@ def get_salary_payment(attendance_id: int):
         """,
         (attendance_id,)
     )
-
+ 
     r = cursor.fetchone()
     conn.close()
-
+ 
     if not r:
         return None
-
+ 
     return {
         "final_salary": r[0]
     }
-
+ 
 @tool
 def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
     """
@@ -222,7 +218,7 @@ def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
     """
     conn = get_connection()
     cursor = conn.cursor()
-
+ 
     if year:
         cursor.execute(
             """
@@ -243,13 +239,13 @@ def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
             """,
             (emp_id,)
         )
-
+ 
     rows = cursor.fetchall()
     conn.close()
-
+ 
     if not rows:
         return []
-
+ 
     records = []
     for r in rows:
         records.append({
@@ -260,5 +256,5 @@ def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
             "month": r[4],
             "year": r[5]
         })
-
+ 
     return records
