@@ -8,7 +8,7 @@ interface ChatInputProps {
   placeholder?: string
   value?: string
   onChange?: (value: string) => void
-  onSubmit?: (value: string) => void
+  onSubmit?: (value: string, isVoice?: boolean) => void
 }
 
 export function ChatInput({
@@ -64,10 +64,10 @@ export function ChatInput({
     if (isListening) {
       recognitionRef.current?.stop()
       setIsListening(false)
-      
+
       // Auto-submit whatever is currently in the prompt window
       if (value.trim() && onSubmit) {
-        onSubmit(value)
+        onSubmit(value, true)
         externalOnChange?.("")
       }
     } else {
@@ -79,14 +79,14 @@ export function ChatInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (value.trim() && onSubmit) {
-      onSubmit(value)
+      onSubmit(value, false)
       externalOnChange?.("")
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="w-full relative flex items-center gap-2">
-      <div className="relative w-full flex-grow">
+      <div className="relative w-full grow">
         <input
           type="text"
           value={value}
@@ -95,22 +95,21 @@ export function ChatInput({
           className="w-full border-0 bg-white/10 px-4 py-3 pb-3 pr-12 text-white placeholder:text-white/50 backdrop-blur-sm focus:outline-none focus:ring-1 focus:ring-white/30 rounded-full"
           disabled={isListening}
         />
-        
+
         {/* Magic Microphone Button inside/overlaying the right side of the input */}
         <button
           type="button"
           onClick={() => {
             if (!recognitionRef.current) {
-               alert("Your browser does not support voice recognition. Please try Chrome or Edge.");
-               return;
+              alert("Your browser does not support voice recognition. Please try Chrome or Edge.");
+              return;
             }
             toggleListening();
           }}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all duration-300 ${
-            isListening 
-              ? "bg-red-500/20 text-red-500 animate-pulse hover:bg-red-500/30" 
-              : "text-white/50 hover:bg-white/10 hover:text-white"
-          }`}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all duration-300 ${isListening
+            ? "bg-red-500/20 text-red-500 animate-pulse hover:bg-red-500/30"
+            : "text-white/50 hover:bg-white/10 hover:text-white"
+            }`}
           title={isListening ? "Stop listening" : "Use microphone"}
         >
           <MicIcon className="h-5 w-5" />

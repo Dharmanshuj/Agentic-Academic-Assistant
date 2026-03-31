@@ -33,7 +33,7 @@ public class PayrollToolService {
     }
 
     // ── Tool 1: get_employee_by_id ──────────────────────────────────────────
-    @Tool(description = "Query employee by ID and return profile with salary components, bank details, deductions, and net pay.")
+    @Tool(description = "Query employee by ID and return profile with basic details, salary components, bank details, deductions, and net pay.")
     public Map<String, Object> get_employee_by_id(
             @ToolParam(description = "Employee ID (e.g. 'EMP001')") String empId) {
 
