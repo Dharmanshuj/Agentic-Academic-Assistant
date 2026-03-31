@@ -23,6 +23,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
   const [isLoading, setIsLoading] = useState(false)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const currentlySpeakingRef = useRef<string | null>(null)
 
   // Cleanup speech on unmount
   useEffect(() => {
@@ -70,10 +71,37 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
   }, [messages])
 
   const handleSuggestionSelect = (suggestion: { id: string; label: string }) => {
-    handleSubmit(suggestion.label)
+    handleSubmit(suggestion.label, false)
   }
 
-  const handleSubmit = async (query: string) => {
+  const handleReadAloud = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+    
+    const isSpeakingThisExactText = window.speechSynthesis.speaking && currentlySpeakingRef.current === text
+    
+    window.speechSynthesis.cancel() // Stop any current speech
+    
+    // If they clicked the button for the text that is currently speaking, we just stop and exit.
+    if (isSpeakingThisExactText) {
+      currentlySpeakingRef.current = null
+      return
+    }
+    
+    currentlySpeakingRef.current = text
+    // Strip basic markdown syntax so it reads cleaner
+    const cleanText = text.replace(/[*#_~`\[\]>]/g, "")
+    const utterance = new SpeechSynthesisUtterance(cleanText)
+    
+    utterance.onend = () => {
+      if (currentlySpeakingRef.current === text) {
+        currentlySpeakingRef.current = null
+      }
+    }
+    
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const handleSubmit = async (query: string, isVoice: boolean = false) => {
     if (!query.trim() || isLoading) return
 
     setInputValue("")
@@ -105,6 +133,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
       const decoder = new TextDecoder()
       let done = false
       let buffer = "" // Buffer to hold incomplete chunks
+      let fullAssistantMessage = "" // Track the full message to read it aloud if needed
 
       while (!done) {
         if (!reader) break
@@ -124,6 +153,10 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
               try {
                 const parsed = JSON.parse(dataStr)
                 const text = parsed.text || ""
+                
+                if (text) {
+                  fullAssistantMessage += text
+                }
 
                 // Append text to the current assistant message
                 setMessages((prev) => {
@@ -152,6 +185,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
               const parsed = JSON.parse(dataStr)
               const text = parsed.text || ""
               if (text) {
+                fullAssistantMessage += text
                 setMessages((prev) => {
                   if (prev.length === 0) return prev
                   const newMsgs = [...prev]
@@ -169,6 +203,11 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
           }
           buffer = ""
         }
+      }
+      
+      // If voice generated this query, read the result aloud automatically
+      if (isVoice && fullAssistantMessage.trim()) {
+        handleReadAloud(fullAssistantMessage)
       }
     } catch (error) {
       console.error("Chat error:", error)
@@ -216,9 +255,20 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
             {messages.map((m, i) => (
               <div key={i} className={`flex flex-col w-full ${m.role === "user" ? "items-end" : "items-start"}`}>
                 {m.role === "assistant" && (
-                  <div className="flex items-center gap-2 mb-1">
-                    <SnowflakeIcon className="h-4 w-4 text-sky-400" />
-                    <span className="text-sm text-white">Pulse AI</span>
+                  <div className="flex items-center gap-3 mb-1 ml-1">
+                    <div className="flex items-center gap-2">
+                      <SnowflakeIcon className="h-4 w-4 text-sky-400" />
+                      <span className="text-sm text-white">Pulse AI</span>
+                    </div>
+                    {m.content && (
+                      <button
+                        onClick={() => handleReadAloud(m.content)}
+                        className="text-white hover:text-white/80 transition-colors"
+                        title="Read aloud"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                      </button>
+                    )}
                   </div>
                 )}
                 <div

@@ -10,6 +10,8 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
+from langchain_core.runnables.config import RunnableConfig
+
 # ── Tools (via Spring Boot MCP Server) ────────────────────────────────────────
 from tools.document_tool import search_documents
 from tools.mcp_tool import (
@@ -73,7 +75,7 @@ Analyze the user's query and categorize their intent into exactly ONE of the fol
 
 - policy_node  : Questions about company rules, HR policies, handbooks, time off, leave, benefits, or HOW salary components/calculations are determined.
 - admin_node   : Requests to view data, salaries, or records for ALL employees or everyone.
-- payroll_node : Questions about the user's personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
+- payroll_node : Questions about the user's personal profile (name, role, etc.), personal attendance, present/absent days, specific salary, personal payslips, deductions, or compensation.
 
 Recent Conversation History:
 {history_text}
@@ -102,7 +104,7 @@ The current demo year is 2026.
 
 You have access to the following tools. Use them autonomously to answer the user's question:
 
-- get_employee_by_id()                → Employee profile (salary components, bank details)
+- get_employee_by_id()                → Employee profile (name, role, salary components, bank details, etc.)
 - get_attendance(month, year)         → Attendance for a specific month
 - get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
 - get_all_attendance_for_employee(year) → All attendance records for the year
@@ -113,11 +115,13 @@ You have access to the following tools. Use them autonomously to answer the user
 3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
 4. If attendance has no matching salary record, compute prorated salary:  base_salary × (present_days / total_days)
 5. Combine all retrieved data and give a clear, professional answer.
+6. ALWAYS address the user in the second person ("You", "Your"). Do NOT use "I" or "My" when referring to the user's data (e.g., say "You earned" instead of "I earned").
+7. If the user asks a follow-up question, or asks you to repeat or clarify something, use the conversation history to provide conversational continuity.
 
 Be concise. Do not reveal raw tool outputs. Format numbers with ₹ prefix.
 """
 
-async def payroll_logic(state: AgentState):
+async def payroll_logic(state: AgentState, config: RunnableConfig):
     """
     Agentic payroll node: the LLM decides which tools to call and loops
     until it has sufficient information to produce a final answer.
@@ -137,11 +141,11 @@ async def payroll_logic(state: AgentState):
         HumanMessage(content=enriched_query),
     ]
 
-    result = await agent.ainvoke({"messages": messages})
+    result = await agent.ainvoke({"messages": messages}, config)
 
     # The final AIMessage is the last message in the result
     final_message = result["messages"][-1]
-    answer = final_message.content
+    answer = final_message.content if final_message.content else "I'm sorry, I couldn't formulate a proper response based on the available data."
 
     return {
         "final_answer": answer,
@@ -169,11 +173,12 @@ You have access to the following tools. Use them to answer the admin's question:
 3. For questions about a specific month's payroll/attendance → call `admin_get_monthly_metrics(month, year)`.
 4. For broad year-level questions → call `admin_get_monthly_metrics(month=None, year=<year>)`.
 5. Combine data and provide a clear, tabular summary when there are multiple employees.
+6. If the user asks to clarify or repeat a previous response, use the conversation history.
 
 Be concise and professional.
 """
 
-async def admin_logic(state: AgentState):
+async def admin_logic(state: AgentState, config: RunnableConfig):
     """
     Agentic admin node: only accessible by ADMIN. LLM chooses tools autonomously.
     """
@@ -189,9 +194,9 @@ async def admin_logic(state: AgentState):
         HumanMessage(content=state["query"]),
     ]
 
-    result = await agent.ainvoke({"messages": messages})
+    result = await agent.ainvoke({"messages": messages}, config)
     final_message = result["messages"][-1]
-    answer = final_message.content
+    answer = final_message.content if final_message.content else "I'm sorry, the admin query returned no text response."
 
     return {
         "final_answer": answer,
@@ -203,7 +208,7 @@ async def admin_logic(state: AgentState):
 
 
 # ── Policy Node (RAG — no tool loop needed) ───────────────────────────────────
-async def policy_logic(state: AgentState):
+async def policy_logic(state: AgentState, config: RunnableConfig):
     """
     Retrieves information on how the salary components are determined/calculated and relevant HR policy documents via RAG and answers the question.
     """
@@ -222,7 +227,7 @@ Instructions:
 - If the documents don't contain the answer, politely say so.
 """
     past_messages = state.get("messages", [])
-    response = await _base_llm.ainvoke(past_messages + [HumanMessage(content=prompt)])
+    response = await _base_llm.ainvoke(past_messages + [HumanMessage(content=prompt)], config)
 
     return {
         "final_answer": response.content,
@@ -274,7 +279,14 @@ async def run_salary_agent(query: str, emp_id: str, session_id: str):
     }
     config = {"configurable": {"thread_id": session_id, "emp_id": emp_id}}
 
-    async for event in graph.astream(initial_state, config):
-        for node_name, output in event.items():
-            if "final_answer" in output:
-                yield output["final_answer"]
+    try:
+        async for event in graph.astream(initial_state, config):
+            for node_name, output in event.items():
+                if "final_answer" in output:
+                    ans = output["final_answer"]
+                    if not ans or not str(ans).strip():
+                        yield "I apologize, but I received an empty response. Please try again."
+                    else:
+                        yield str(ans)
+    except Exception as e:
+        yield f"An internal server error occurred while analyzing your request: {str(e)}"
