@@ -63,6 +63,8 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
       const decoder = new TextDecoder()
       let done = false
       let buffer = "" // Buffer to hold incomplete chunks
+      let fullAssistantMessage = "" // Track the full message to read it aloud if needed
+      let typingPromise = Promise.resolve()
 
       while (!done) {
         if (!reader) break
@@ -82,17 +84,26 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
               try {
                 const parsed = JSON.parse(dataStr)
                 const text = parsed.text || ""
+                
+                if (text) {
+                  fullAssistantMessage += text
+                }
 
-                // Append text to the current assistant message
-                setMessages((prev) => {
-                  if (prev.length === 0) return prev
-                  const newMsgs = [...prev]
-                  const lastMsg = { ...newMsgs[newMsgs.length - 1] }
-                  if (lastMsg.role === "assistant") {
-                    lastMsg.content += text
-                    newMsgs[newMsgs.length - 1] = lastMsg
+                // Append text to the current assistant message character by character
+                typingPromise = typingPromise.then(async () => {
+                  for (let i = 0; i < text.length; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 10))
+                    setMessages((prev) => {
+                      if (prev.length === 0) return prev
+                      const newMsgs = [...prev]
+                      const lastMsg = { ...newMsgs[newMsgs.length - 1] }
+                      if (lastMsg.role === "assistant") {
+                        lastMsg.content += text[i]
+                        newMsgs[newMsgs.length - 1] = lastMsg
+                      }
+                      return newMsgs
+                    })
                   }
-                  return newMsgs
                 })
               } catch (e) {
                 console.error("SSE JSON parse error:", e)
@@ -110,15 +121,21 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
               const parsed = JSON.parse(dataStr)
               const text = parsed.text || ""
               if (text) {
-                setMessages((prev) => {
-                  if (prev.length === 0) return prev
-                  const newMsgs = [...prev]
-                  const lastMsg = { ...newMsgs[newMsgs.length - 1] }
-                  if (lastMsg.role === "assistant") {
-                    lastMsg.content += text
-                    newMsgs[newMsgs.length - 1] = lastMsg
+                fullAssistantMessage += text
+                typingPromise = typingPromise.then(async () => {
+                  for (let i = 0; i < text.length; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 10))
+                    setMessages((prev) => {
+                      if (prev.length === 0) return prev
+                      const newMsgs = [...prev]
+                      const lastMsg = { ...newMsgs[newMsgs.length - 1] }
+                      if (lastMsg.role === "assistant") {
+                        lastMsg.content += text[i]
+                        newMsgs[newMsgs.length - 1] = lastMsg
+                      }
+                      return newMsgs
+                    })
                   }
-                  return newMsgs
                 })
               }
             } catch (e) {
@@ -128,6 +145,14 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
           buffer = ""
         }
       }
+      
+      // If voice generated this query, read the result aloud automatically
+      if (isVoice && fullAssistantMessage.trim()) {
+        handleReadAloud(fullAssistantMessage)
+      }
+      
+      // Wait for all text to finish typing before ending the "loading" state
+      await typingPromise
     } catch (error) {
       console.error("Chat error:", error)
       setMessages((prev) => {
@@ -196,7 +221,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
                           strong: ({ node, ...props }: any) => <strong className="font-semibold text-white/95" {...props} />
                         }}
                       >
-                        {m.content}
+                        {m.content + (isLoading && m.role === "assistant" && i === messages.length - 1 ? " ▍" : "")}
                       </ReactMarkdown>
                     ) : (
                       m.content
