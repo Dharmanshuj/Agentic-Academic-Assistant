@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { SnowflakeIcon } from "@/components/icons/snowflake-icon"
 import { ChatInput } from "./chat-input"
 import { InputControls } from "./input-controls"
+import { SpeakerIcon } from "@/components/icons/speaker-icon"
 import { SuggestionBadges } from "./suggestion-badges"
 import ReactMarkdown from "react-markdown"
 
@@ -20,7 +21,48 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
   const [inputValue, setInputValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Cleanup speech on unmount
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  const handleSpeak = (text: string, index: number) => {
+    if (!("speechSynthesis" in window)) {
+      alert("Your browser does not support text-to-speech functionality.")
+      return
+    }
+
+    // Toggle off if currently speaking the same message
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel()
+      setSpeakingIndex(null)
+      return
+    }
+
+    // Stop anything currently speaking
+    window.speechSynthesis.cancel()
+
+    // Strip basic markdown symbols for cleaner speech
+    const cleanText = text.replace(/[*_#`\n]/g, " ").trim()
+    const utterance = new SpeechSynthesisUtterance(cleanText)
+    
+    // Customize voice slightly if needed (optional)
+    utterance.rate = 1.05
+    utterance.pitch = 1.0
+    
+    utterance.onend = () => setSpeakingIndex(null)
+    utterance.onerror = () => setSpeakingIndex(null)
+
+    window.speechSynthesis.speak(utterance)
+    setSpeakingIndex(index)
+  }
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
@@ -187,17 +229,31 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
                 >
                   {m.content ? (
                     m.role === "assistant" ? (
-                      <ReactMarkdown
-                        components={{
-                          ul: ({ node, ...props }: any) => <ul className="list-disc pl-4 my-1" {...props} />,
-                          ol: ({ node, ...props }: any) => <ol className="list-decimal pl-4 my-1" {...props} />,
-                          li: ({ node, ...props }: any) => <li className="my-0.5" {...props} />,
-                          p: ({ node, ...props }: any) => <p className="mb-2 last:mb-0" {...props} />,
-                          strong: ({ node, ...props }: any) => <strong className="font-semibold text-white/95" {...props} />
-                        }}
-                      >
-                        {m.content}
-                      </ReactMarkdown>
+                      <div className="flex flex-col gap-2 relative group">
+                        <ReactMarkdown
+                          components={{
+                            ul: ({ node, ...props }: any) => <ul className="list-disc pl-4 my-1" {...props} />,
+                            ol: ({ node, ...props }: any) => <ol className="list-decimal pl-4 my-1" {...props} />,
+                            li: ({ node, ...props }: any) => <li className="my-0.5" {...props} />,
+                            p: ({ node, ...props }: any) => <p className="mb-2 last:mb-0" {...props} />,
+                            strong: ({ node, ...props }: any) => <strong className="font-semibold text-white/95" {...props} />
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                        {/* Read Aloud Button */}
+                        <button
+                          onClick={() => handleSpeak(m.content, i)}
+                          className={`self-start flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                            speakingIndex === i
+                              ? "bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/50"
+                              : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <SpeakerIcon className="w-3.5 h-3.5" />
+                          {speakingIndex === i ? "Stop Speaking" : "Listen"}
+                        </button>
+                      </div>
                     ) : (
                       m.content
                     )
