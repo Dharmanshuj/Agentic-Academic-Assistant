@@ -83,6 +83,11 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("access_token")
+          window.location.href = "/login"
+          return
+        }
         throw new Error("Failed to fetch response from AI")
       }
 

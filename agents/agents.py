@@ -214,7 +214,7 @@ async def policy_logic(state: AgentState, config: RunnableConfig):
     """
     docs = search_documents.func(state["query"])
 
-    prompt = f"""You are an HR Policy Assistant. Use the retrieved policy documents below to answer the user's question.
+    prompt = f"""You are an HR Policy Assistant. Use the retrieved policy documents below to answer the user's question. Refers the data as policies rather than documents
 
 Documents:
 {docs}
