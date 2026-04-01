@@ -9,12 +9,6 @@ export function RegisterEmployeeForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const [workLocation, setWorkLocation] = useState("");
-  const [attendance, setAttendance] = useState({
-    totalDays: 0,
-    presentDays: 0,
-    month: "",
-    year: ""
-  });
   const [salary, setSalary] = useState({
     basicSalary: 0,
     conveyance: 0,
@@ -32,14 +26,6 @@ export function RegisterEmployeeForm() {
     }));
   };
 
-  const handleAttendanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setAttendance(prev => ({
-      ...prev,
-      [name]: name === "month" || name === "year" ? value : parseInt(value || "0", 10) || 0
-    }));
-  };
-
   const calculatedHra = salary.basicSalary * 0.4;
   const calculatedEpf = salary.basicSalary * 0.12;
   const resolvedConveyance = salary.conveyance > 0 ? salary.conveyance : salary.basicSalary * 0.05;
@@ -49,7 +35,6 @@ export function RegisterEmployeeForm() {
   const professionalTax = PROFESSIONAL_TAX_BY_LOCATION[workLocation] ?? 0;
   const totalDeductions = calculatedEpf + salary.healthInsurance + professionalTax + salary.tds;
   const netPay = grossSalary - totalDeductions;
-  const absentDays = Math.max(attendance.totalDays - attendance.presentDays, 0);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -59,7 +44,6 @@ export function RegisterEmployeeForm() {
     const data = Object.fromEntries(formData.entries()) as Record<string, FormDataEntryValue | boolean>;
     
     data.workLocation = workLocation;
-    data.absentDays = absentDays.toString();
 
     try {
       const token = localStorage.getItem("access_token");
@@ -90,12 +74,6 @@ export function RegisterEmployeeForm() {
         special: 0,
         healthInsurance: 0,
         tds: 0
-      });
-      setAttendance({
-        totalDays: 0,
-        presentDays: 0,
-        month: "",
-        year: ""
       });
       setWorkLocation("");
       router.push("/dashboard");
@@ -188,17 +166,7 @@ export function RegisterEmployeeForm() {
           </div>
         </div>
 
-        {/* Attendance Details */}
-        <div>
-          <h3 className="text-lg font-medium mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">Initial Attendance Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="space-y-1.5"><label className="text-sm font-medium">Total Days</label><input name="totalDays" type="number" required value={attendance.totalDays || ""} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="30" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Present</label><input name="presentDays" type="number" required value={attendance.presentDays || ""} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="28" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Absent</label><input type="number" readOnly value={absentDays} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-zinc-50 cursor-not-allowed font-semibold" placeholder="Calculated automatically" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Month</label><input name="month" type="number" min="1" max="12" required value={attendance.month} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="10" /></div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Year</label><input name="year" type="number" required value={attendance.year} onChange={handleAttendanceChange} className="input-field w-full text-black px-3 py-2 border border-zinc-200 rounded-md bg-transparent" placeholder="2023" /></div>
-          </div>
-        </div>
+
 
         <button 
           type="submit" 
