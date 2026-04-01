@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/employees/register").hasRole("ADMIN")
+                        .requestMatchers("/api/employees/register", "/api/employees/attendance").hasRole("ADMIN")
                         .requestMatchers("/sse", "/mcp/**").permitAll()
                         .anyRequest().permitAll())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

@@ -32,6 +32,7 @@ export default function PolarLandingPage() {
   const [backgroundImage, setBackgroundImage] = useState(DEFAULT_BACKGROUND)
   const [userName, setUserName] = useState("Employee")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem("access_token")
@@ -62,16 +63,48 @@ export default function PolarLandingPage() {
       {/* Gradient overlay for better contrast */}
       <div className="absolute inset-0 bg-linear-to-t from-black via-black/50 to-transparent" />
 
-      {/* Admin Register Button */}
+      {/* Admin Actions Button & Modal */}
       {isAdmin && (
-        <div className="absolute top-4 left-6 z-20">
-          <Link
-            href="/dashboard/admin/register"
-            className="flex items-center justify-center px-4 py-2 text-sm font-medium text-white/70 border border-white/20 hover:text-white hover:bg-white/10 rounded-md transition-colors backdrop-blur-md"
-          >
-            + Register New Employee
-          </Link>
-        </div>
+        <>
+          <div className="absolute top-4 left-6 z-20">
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center justify-center px-4 py-2 text-sm font-medium text-white/70 border border-white/20 hover:text-white hover:bg-white/10 rounded-md transition-colors backdrop-blur-md"
+            >
+              Update Details
+            </button>
+          </div>
+
+          {showModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+              <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-black/80 p-6 shadow-2xl">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="absolute top-4 right-4 text-white/50 hover:text-white"
+                >
+                  ✕
+                </button>
+                <h3 className="mb-6 text-xl font-medium text-white">Select Action</h3>
+                <div className="flex flex-col gap-3">
+                  <Link
+                    href="/dashboard/admin/update-attendance"
+                    className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left text-sm text-white/90 hover:bg-white/10 transition-colors border border-white/10"
+                  >
+                    <span>Update existing employee</span>
+                    <span className="text-white/40">›</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/admin/register"
+                    className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left text-sm text-white/90 hover:bg-white/10 transition-colors border border-white/10"
+                  >
+                    <span>Register new employee</span>
+                    <span className="text-white/40">›</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Logout Button */}

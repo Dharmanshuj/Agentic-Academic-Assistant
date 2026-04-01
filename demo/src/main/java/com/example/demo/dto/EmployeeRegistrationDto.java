@@ -19,10 +19,4 @@ public class EmployeeRegistrationDto {
     private Double healthInsurance;
     private Double tds;
 
-    // Attendance data
-    private Integer totalDays;
-    private Integer presentDays;
-    private Integer absentDays;
-    private Integer month;
-    private Integer year;
 }
