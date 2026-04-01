@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.UpdateAttendanceDto;
 import com.example.demo.dto.EmployeeRegistrationDto;
 import com.example.demo.model.Attendance;
 import com.example.demo.model.Employee;
@@ -50,21 +51,64 @@ public class EmployeeService {
 
         Employee savedEmployee = employeeRepository.save(employee);
 
-        Attendance attendance = new Attendance();
+        return savedEmployee;
+    }
+
+    @Transactional
+    public Attendance updateAttendance(UpdateAttendanceDto dto) {
+        if (dto.getEmpno() == null || dto.getEmpno().isBlank()) {
+            throw new IllegalArgumentException("Employee number is required.");
+        }
+        if (dto.getMonth() == null || dto.getYear() == null) {
+            throw new IllegalArgumentException("Month and year are required.");
+        }
+
+        String empNo = dto.getEmpno();
+if (empNo == null) {
+    throw new IllegalArgumentException("Employee ID cannot be null");
+}
+
+Employee employee = employeeRepository.findById(empNo)
+        .orElseThrow(() -> new IllegalArgumentException("Employee not found with id: " + empNo));
+
+
+        Attendance attendance = attendanceRepository.findByEmpnoAndMonthAndYear(dto.getEmpno(), dto.getMonth(), dto.getYear())
+                .orElseGet(Attendance::new);
+
         attendance.setEmpno(dto.getEmpno());
-        attendance.setTotalDays(dto.getTotalDays());
-        attendance.setPresentDays(dto.getPresentDays());
-        attendance.setAbsentDays(resolveAbsentDays(dto));
         attendance.setMonth(dto.getMonth());
         attendance.setYear(dto.getYear());
+        attendance.setTotalDays(dto.getTotalDays());
+        attendance.setPresentDays(dto.getPresentDays());
+        
+        Integer absentDays = dto.getAbsentDays();
+        if (absentDays == null) {
+            absentDays = dto.getTotalDays() - dto.getPresentDays();
+        }
+        attendance.setAbsentDays(absentDays);
+
         Attendance savedAttendance = attendanceRepository.save(attendance);
 
-        SalaryPayment salaryPayment = buildSalaryPayment(savedEmployee, savedAttendance);
-        if (salaryPayment == null)
-            throw new RuntimeException("salaryPayment is null");
-        salaryPaymentRepository.save(salaryPayment);
+        // Update or create corresponding SalaryPayment
+        // 1. Try to find existing, or build a new one if not found
+SalaryPayment salaryPayment = salaryPaymentRepository
+    .findByAttendanceId(savedAttendance.getId())
+    .orElseGet(() -> buildSalaryPayment(employee, savedAttendance));
 
-        return savedEmployee;
+// 2. If it wasn't a new one (it was found), update the calculations
+if (salaryPayment.getId() != null) {
+    double perDaySalary = employee.getGrossSalary() / savedAttendance.getTotalDays();
+    double earnedSalary = perDaySalary * savedAttendance.getPresentDays();
+
+    salaryPayment.setPerDaySalary(perDaySalary);
+    salaryPayment.setEarnedSalary(earnedSalary);
+    salaryPayment.setFinalSalary(earnedSalary - employee.getTotalDeductions());
+}
+
+// 3. Now 'salaryPayment' is guaranteed to be @NonNull
+salaryPaymentRepository.save(salaryPayment);
+
+        return savedAttendance;
     }
 
     @SuppressWarnings("null")
@@ -97,37 +141,12 @@ public class EmployeeService {
         if (dto.getBasicSalary() == null || dto.getBasicSalary() <= 0) {
             throw new IllegalArgumentException("Basic salary must be greater than zero.");
         }
-        if (dto.getTotalDays() == null || dto.getTotalDays() <= 0) {
-            throw new IllegalArgumentException("Total days must be greater than zero.");
-        }
-        if (dto.getPresentDays() == null || dto.getPresentDays() < 0) {
-            throw new IllegalArgumentException("Present days must be zero or more.");
-        }
-        if (dto.getPresentDays() > dto.getTotalDays()) {
-            throw new IllegalArgumentException("Present days cannot exceed total days.");
-        }
-        if (dto.getMonth() == null || dto.getMonth() < 1 || dto.getMonth() > 12) {
-            throw new IllegalArgumentException("Month must be between 1 and 12.");
-        }
-        if (dto.getYear() == null || dto.getYear() < 2000) {
-            throw new IllegalArgumentException("Year must be valid.");
-        }
         if (employeeRepository.existsById(dto.getEmpno())) {
             throw new IllegalArgumentException("Employee already exists.");
         }
     }
 
-    private Integer resolveAbsentDays(EmployeeRegistrationDto dto) {
-        if (dto.getAbsentDays() != null) {
-            int expectedAbsentDays = dto.getTotalDays() - dto.getPresentDays();
-            if (!dto.getAbsentDays().equals(expectedAbsentDays)) {
-                throw new IllegalArgumentException("Absent days must equal total days minus present days.");
-            }
-            return dto.getAbsentDays();
-        }
 
-        return dto.getTotalDays() - dto.getPresentDays();
-    }
 
     private SalaryPayment buildSalaryPayment(Employee employee, Attendance attendance) {
         SalaryPayment salaryPayment = new SalaryPayment();
