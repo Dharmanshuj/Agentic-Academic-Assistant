@@ -57,8 +57,8 @@ public class Employee {
 
         double basic = basicSalary;
 
-        // Gurugram is treated as non-metro for this payroll setup.
-        this.hra = 0.4 * basic;
+        // HRA is 50% for metro cities, 40% for non-metro
+        this.hra = (this.isMetro != null && this.isMetro) ? 0.5 * basic : 0.4 * basic;
 
         // EPF
         this.epf = 0.12 * basic;

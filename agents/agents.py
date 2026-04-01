@@ -23,7 +23,7 @@ from tools.mcp_tool import (
     admin_get_monthly_metrics,
     get_all_attendance_for_employee,
 )
-from calculation.calculator import calculate_prorated_salary
+
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
 _base_llm = ChatGoogleGenerativeAI(
@@ -37,6 +37,7 @@ PAYROLL_TOOLS = [
     get_attendance,
     get_salary_payment,
     get_all_attendance_for_employee,
+    search_documents
 ]
 
 # Admin tools (served by Spring Boot via MCP)
@@ -104,17 +105,30 @@ The current demo year is 2026.
 
 You have access to the following tools. Use them autonomously to answer the user's question:
 
-- get_employee_by_id()                → Employee profile (name, role, salary components, bank details, etc.)
-- get_attendance(month, year)         → Attendance for a specific month
-- get_salary_payment(attendance_id)   → Actual salary paid for a specific attendance record
+- get_employee_by_id()                  → Employee profile (name, role, salary components, bank details, etc.)
+- get_attendance(month, year)           → Attendance for a specific month
+- get_salary_payment(attendance_id)     → Actual salary paid for a specific attendance record
 - get_all_attendance_for_employee(year) → All attendance records for the year
+- search_documents(query)               → Search the HR handbook for company policies
+
+## Salary Structure Logic (If asked for exact calculations)
+- Basic Salary is the foundation.
+- HRA = 50% of Basic (Metro) or 40% of Basic (Non-Metro).
+- EPF = 12% of Basic.
+- Conveyance & Medical = Fixed amounts, or 5% of Basic.
+- Special Allowance = Balancing figure to reach target gross.
+- Gross = Basic + HRA + Conveyance + Medical + Special.
+- Total Deductions = EPF + Health Insurance + PT (~200) + TDS.
+- Per Day Salary = Gross / Total Days.
+- Earned Salary = Per Day Salary * Present Days.
+- Final Net Salary = Earned Salary - Total Deductions.
 
 ## Decision Logic
 1. ALWAYS start by calling `get_employee_by_id` to get the employee's profile.
 2. If the user asks about a SPECIFIC month → call `get_attendance` then `get_salary_payment`.
 3. If the user asks about all months or YTD → call `get_all_attendance_for_employee`, then call `get_salary_payment` for each record.
-4. If attendance has no matching salary record, compute prorated salary:  base_salary × (present_days / total_days)
-5. Combine all retrieved data and give a clear, professional answer.
+4. If asked to show exact calculations, use the Employee details and the Salary Structure Logic to lay out the math step by step.
+5. Combine all retrieved data and give a clear, professional answer. 
 6. ALWAYS address the user in the second person ("You", "Your"). Do NOT use "I" or "My" when referring to the user's data (e.g., say "You earned" instead of "I earned").
 7. If the user asks a follow-up question, or asks you to repeat or clarify something, use the conversation history to provide conversational continuity.
 

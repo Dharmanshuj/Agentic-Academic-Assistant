@@ -40,7 +40,10 @@ public class EmployeeService {
         employee.setBankName(dto.getBankName());
         employee.setAccountNo(dto.getAccountNo());
         employee.setBasicSalary(dto.getBasicSalary());
-        employee.setIsMetro(false);
+        String loc = dto.getWorkLocation() != null ? dto.getWorkLocation().trim().toLowerCase(java.util.Locale.ROOT)
+                : "";
+        boolean metro = loc.equals("delhi") || loc.equals("mumbai") || loc.equals("chennai") || loc.equals("kolkata");
+        employee.setIsMetro(metro);
         employee.setConveyance(dto.getConveyance());
         employee.setMedical(dto.getMedical());
         employee.setSpecial(dto.getSpecial());
@@ -64,15 +67,15 @@ public class EmployeeService {
         }
 
         String empNo = dto.getEmpno();
-if (empNo == null) {
-    throw new IllegalArgumentException("Employee ID cannot be null");
-}
+        if (empNo == null) {
+            throw new IllegalArgumentException("Employee ID cannot be null");
+        }
 
-Employee employee = employeeRepository.findById(empNo)
-        .orElseThrow(() -> new IllegalArgumentException("Employee not found with id: " + empNo));
+        Employee employee = employeeRepository.findById(empNo)
+                .orElseThrow(() -> new IllegalArgumentException("Employee not found with id: " + empNo));
 
-
-        Attendance attendance = attendanceRepository.findByEmpnoAndMonthAndYear(dto.getEmpno(), dto.getMonth(), dto.getYear())
+        Attendance attendance = attendanceRepository
+                .findByEmpnoAndMonthAndYear(dto.getEmpno(), dto.getMonth(), dto.getYear())
                 .orElseGet(Attendance::new);
 
         attendance.setEmpno(dto.getEmpno());
@@ -80,7 +83,7 @@ Employee employee = employeeRepository.findById(empNo)
         attendance.setYear(dto.getYear());
         attendance.setTotalDays(dto.getTotalDays());
         attendance.setPresentDays(dto.getPresentDays());
-        
+
         Integer absentDays = dto.getAbsentDays();
         if (absentDays == null) {
             absentDays = dto.getTotalDays() - dto.getPresentDays();
@@ -91,27 +94,26 @@ Employee employee = employeeRepository.findById(empNo)
 
         // Update or create corresponding SalaryPayment
         // 1. Try to find existing, or build a new one if not found
-SalaryPayment salaryPayment = salaryPaymentRepository
-    .findByAttendanceId(savedAttendance.getId())
-    .orElseGet(() -> buildSalaryPayment(employee, savedAttendance));
+        SalaryPayment salaryPayment = salaryPaymentRepository
+                .findByAttendanceId(savedAttendance.getId())
+                .orElseGet(() -> buildSalaryPayment(employee, savedAttendance));
 
-// 2. If it wasn't a new one (it was found), update the calculations
-if (salaryPayment.getId() != null) {
-    double perDaySalary = employee.getGrossSalary() / savedAttendance.getTotalDays();
-    double earnedSalary = perDaySalary * savedAttendance.getPresentDays();
+        // 2. If it wasn't a new one (it was found), update the calculations
+        if (salaryPayment.getId() != null) {
+            double perDaySalary = employee.getGrossSalary() / savedAttendance.getTotalDays();
+            double earnedSalary = perDaySalary * savedAttendance.getPresentDays();
 
-    salaryPayment.setPerDaySalary(perDaySalary);
-    salaryPayment.setEarnedSalary(earnedSalary);
-    salaryPayment.setFinalSalary(earnedSalary - employee.getTotalDeductions());
-}
+            salaryPayment.setPerDaySalary(perDaySalary);
+            salaryPayment.setEarnedSalary(earnedSalary);
+            salaryPayment.setFinalSalary(earnedSalary - employee.getTotalDeductions());
+        }
 
-// 3. Now 'salaryPayment' is guaranteed to be @NonNull
-salaryPaymentRepository.save(salaryPayment);
+        // 3. Now 'salaryPayment' is guaranteed to be @NonNull
+        salaryPaymentRepository.save(salaryPayment);
 
         return savedAttendance;
     }
 
-    @SuppressWarnings("null")
     private void validateRegistration(EmployeeRegistrationDto dto) {
         if (dto.getEmpno() == null || dto.getEmpno().isBlank()) {
             throw new IllegalArgumentException("Employee number is required.");
@@ -145,8 +147,6 @@ salaryPaymentRepository.save(salaryPayment);
             throw new IllegalArgumentException("Employee already exists.");
         }
     }
-
-
 
     private SalaryPayment buildSalaryPayment(Employee employee, Attendance attendance) {
         SalaryPayment salaryPayment = new SalaryPayment();
