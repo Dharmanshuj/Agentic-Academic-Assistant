@@ -7,5 +7,5 @@ def get_connection():
         host=os.getenv("DB_HOST", "localhost"),
         user=os.getenv("DB_USER", "root"),
         password=os.getenv("DB_PASS"), # Matches the .env file
-        database=os.getenv("DB_NAME", "company")
+        database=os.getenv("DB_NAME", "nitj_student_assistant")
     )

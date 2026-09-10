@@ -1,0 +1,1104 @@
+﻿NIT JALANDHAR STUDENT ACADEMIC ASSISTANT
+A PROJECT REPORT
+
+Submitted in partial fulfillment of the requirement for the award of the degree of
+BACHELOR OF TECHNOLOGY
+in
+COMPUTER SCIENCE AND ENGINEERING
+
+Submitted by
+Project Team
+
+Under the supervision of
+Faculty Mentor
+Department of Computer Science and Engineering
+Dr. B.R. Ambedkar National Institute of Technology Jalandhar
+144008, Punjab (India)
+June 2026
+
+
+CANDIDATES' DECLARATION
+
+We hereby affirm that the project titled "NIT Jalandhar Student Academic Assistant" has been developed by us and is being submitted to the Department of Computer Science and Engineering, Dr. B.R. Ambedkar National Institute of Technology Jalandhar, in partial fulfillment of the degree requirements. The work reported in this document is an original implementation effort carried out during the major project period.
+
+The report has been prepared by studying the existing repository, execution flow, backend and frontend implementation, architecture decisions, data design, and validation outputs. All technological references, libraries, frameworks, and standards that influenced this work have been appropriately acknowledged. We also confirm that this report has not been submitted to any other institution for the award of any degree, diploma, or certification.
+
+We further state that the material presented here reflects the real project architecture and implementation details as present in the codebase, including the three-server runtime model (React, Python FastAPI, and Spring Boot MCP server), role-based authentication, retrieval-augmented generation pipeline, and relational data services.
+
+
+ACKNOWLEDGEMENT
+
+The successful completion of this project and report has been possible due to the support and guidance of multiple contributors. We sincerely thank the faculty of the Department of Computer Science and Engineering for their technical advice and mentorship throughout the project cycle.
+
+We acknowledge the open-source community for providing mature and production-oriented tools that enabled us to build a complete AI-backed educational assistant. In particular, frameworks such as Next.js, FastAPI, Spring Boot, LangChain, LangGraph, FAISS, and Spring AI MCP made it possible to combine conversational intelligence with structured and unstructured data retrieval.
+
+We extend appreciation to peers and reviewers who continuously tested application behavior, helped validate routing and authentication flows, and provided practical suggestions on user interface improvements, quota fallback handling, and deployment sequence.
+
+
+ABSTRACT
+
+This report presents the design and implementation of a full-stack, multi-server, AI-enabled Student Academic Assistant system tailored for NIT Jalandhar. The system addresses a practical and common problem in educational institutions: delivering accurate, secure, and context-aware responses for both student-specific and institution-level academic queries.
+
+Unlike a traditional single-layer chatbot, the project adopts a three-server architecture in which each server has a dedicated responsibility. The first layer is a React/Next.js frontend dashboard that handles login, chat interaction, voice-enabled read-aloud, and real-time response rendering through Server-Sent Events. The second layer is a Python FastAPI orchestration backend that performs authentication, validates tokens, manages the conversational workflow through LangGraph, routes requests to domain-specific nodes, and coordinates tool calls and RAG retrieval. The third layer is a Spring Boot server configured as an MCP (Model Context Protocol) tool provider that exposes strongly typed academic and profile tools backed by JPA repositories and MySQL.
+
+The project combines two complementary intelligence modes. For unstructured policy and curriculum information, a RAG pipeline is implemented using PDF ingestion, chunking, Gemini embeddings, and FAISS retrieval. For structured student and admin analytics, Spring MCP tools query relational tables such as students, attendance, academic_performance, subjects, internships, and placements. This hybrid approach ensures factual grounding, reduced hallucination, and useful personalized responses.
+
+Security has been treated as a first-class requirement. Student passwords are verified against Argon2 hashes, JWT tokens are issued with role claims and expiry, and admin operations are guarded by explicit role checks in orchestration logic. Operational stability considerations include timeout boundaries for MCP calls and graceful fallback responses in case of LLM quota exhaustion.
+
+The resulting platform demonstrates a practical blueprint for educational AI systems that need to integrate conversational UX, secure role-aware access, deterministic tool execution, and document-grounded question answering. This report documents complete architecture, modules, schemas, sequence flows, implementation decisions, trade-offs, and future enhancement directions.
+
+
+PLAGIARISM REPORT STATEMENT
+
+This technical report has been prepared from implementation-level analysis of the project repository and does not copy another project report's domain content. The sample report was used only as a structure template for chapter sequence, heading style, and report organization. All project-specific descriptions in this document correspond to the present codebase and its observed runtime behavior.
+
+
+LIST OF FIGURES
+
+Fig. 3.1.1  High-Level Three-Server Architecture
+Fig. 3.1.2  End-to-End Request and Response Flow
+Fig. 3.4.1  Spring MCP Tool Service Layering
+Fig. 3.5.1  RAG Ingestion and Retrieval Pipeline
+Fig. 5.2.1  ER Diagram for Student Assistant Domain
+Fig. 5.4.1  Relationship and Cardinality View
+Fig. 7.1.1  FastAPI API Contract Overview
+Fig. 7.2.1  MCP Tool Contract Matrix
+Fig. 8.3.1  Runtime Startup Sequence Diagram
+Fig. 9.1.1  Functional Validation Matrix
+
+
+TABLE OF CONTENTS
+
+CANDIDATES' DECLARATION
+ACKNOWLEDGEMENT
+ABSTRACT
+PLAGIARISM REPORT STATEMENT
+LIST OF FIGURES
+
+PART - I  SYSTEM FOUNDATIONS AND SOLUTION DESIGN
+1  INTRODUCTION
+ 1.1  Background of the problem
+ 1.2  Comparative study
+ 1.3  Problem statement
+ 1.4  Motivation
+ 1.5  Feasibility
+2  PROPOSED SOLUTION
+ 2.1  Solution overview
+ 2.2  Core features
+ 2.3  Security architecture
+3  TECHNOLOGY ANALYSIS
+ 3.1  Methodology
+ 3.2  Technology stack
+ 3.3  Architecture diagram
+ 3.4  Service-level decomposition
+ 3.5  RAG and MCP interoperability
+4  ECONOMIC ANALYSIS
+5  RESULTS AND DISCUSSION
+ 5.1  Baseline and final system behavior
+ 5.2  Challenges and solutions
+6  CONCLUSION
+
+PART - II  IMPLEMENTATION, DATABASE, FLOWS, AND OPERATIONS
+7  INTRODUCTION
+ 7.1  System context for implementation
+ 7.2  Role-wise usage model
+ 7.3  Data and workflow boundaries
+8  PROPOSED IMPLEMENTATION
+ 8.1  Frontend implementation
+ 8.2  Python backend implementation
+ 8.3  Spring MCP implementation
+ 8.4  API and streaming behavior
+9  DATABASE AND DATA FLOW ANALYSIS
+ 9.1  Database schema
+ 9.2  ER diagram
+ 9.3  Relationships and constraints
+ 9.4  Query paths across modules
+10  OPERATIONAL ANALYSIS
+ 10.1  Deployment and startup sequence
+ 10.2  Performance and reliability considerations
+ 10.3  Security and compliance considerations
+11  RESULTS AND DISCUSSION
+ 11.1  Validation outcomes
+ 11.2  Limitations and improvement areas
+12  CONCLUSION AND FUTURE WORK
+REFERENCES
+
+
+PART - I
+SYSTEM FOUNDATIONS AND SOLUTION DESIGN
+
+
+1. INTRODUCTION
+
+1.1 Background of the problem
+Higher education institutions maintain a large volume of student-related information distributed across multiple systems and formats. Structured records such as attendance, semester grades, and profile data are generally stored in relational databases. At the same time, academic policies, leave rules, reimbursement rules, curriculum documents, and administrative circulars are frequently managed as PDF files and unstructured content repositories.
+
+Students and administrative staff require quick access to this information in a conversational way. However, existing institutional portals are typically form-driven and fragmented, requiring users to navigate across many pages and data modules. Generic chatbots without direct data integration often provide inconsistent responses, while pure query dashboards are not conversational and require users to know exact field names or report parameters.
+
+The project addressed in this report aims to bridge this gap by combining modern conversational AI with deterministic data tools and document retrieval. The target environment is an academic assistant for NIT Jalandhar where a student can ask personal questions such as "What is my attendance?" or "Show my semester performance," and the system can answer from verified database records. Similarly, an admin can request aggregate information for all students.
+
+The system is also expected to handle institution-wide policy queries by searching indexed documents and synthesizing context-grounded responses. Therefore, the problem is not just "building a chatbot" but engineering an integrated knowledge and data access platform with proper authorization, accurate tool invocation, and reliable user experience.
+
+1.2 Comparative study
+A comparative analysis was performed at architecture level rather than product-brand level. Three baseline alternatives were considered:
+
+Alternative A: Pure LLM chat without tools
+- Strength: Natural language interaction and fast initial setup.
+- Limitation: High hallucination risk for factual and personalized data.
+- Limitation: No secure access to student-specific records.
+
+Alternative B: Dashboard-only data portal
+- Strength: Reliable structured data retrieval.
+- Limitation: No natural conversational capability.
+- Limitation: Poor handling of unstructured policy documents.
+
+Alternative C: Hybrid AI + tools + RAG (chosen)
+- Strength: Combines conversational UX with data-grounded responses.
+- Strength: Supports both structured records and document intelligence.
+- Strength: Enables role-based access and deterministic tool execution.
+
+The selected approach is Alternative C, implemented through a multi-server architecture with strict separation of concerns: frontend interaction layer, orchestration layer, and tool/data layer.
+
+1.3 Problem statement
+Design and implement a robust student academic assistant that:
+- Authenticates users securely.
+- Supports role-based behavior for student and admin.
+- Answers personal queries from structured academic data.
+- Answers institutional/policy queries from document retrieval.
+- Integrates tools via MCP for maintainable cross-language service calls.
+- Streams responses in near real time.
+- Handles model quota and transient errors gracefully.
+
+1.4 Motivation
+The primary motivation is practical institutional utility. A student assistant should reduce friction in accessing personal and academic information while preserving security and correctness. The secondary motivation is technical: to demonstrate an industrial pattern for AI applications where language models do not directly own truth, but orchestrate trusted data sources.
+
+This project also provides educational value by integrating modern software paradigms:
+- agentic orchestration using state graphs,
+- protocol-based tool integration (MCP),
+- retrieval-augmented generation,
+- zero-trust style role validation,
+- and real-time frontend streaming UX.
+
+1.5 Feasibility
+Feasibility was evaluated across technical, operational, and economic dimensions.
+
+Technical feasibility
+- All required frameworks are mature and open source.
+- Existing project repository already contains integrated modules.
+- Local runtime with MySQL and three servers is achievable.
+
+Operational feasibility
+- Startup and execution sequence is straightforward.
+- Components are decoupled for isolated debugging.
+- Existing tests and endpoint-level checks can validate core flows.
+
+Economic feasibility
+- Local development cost is low.
+- Main recurring cost is LLM API usage, which can be optimized with caching and controlled prompt policies.
+
+
+2. PROPOSED SOLUTION
+
+2.1 Solution overview
+The proposed solution is a full-stack, protocol-driven, hybrid AI assistant composed of three running services:
+
+Service 1: Next.js frontend dashboard
+- Login UI and protected dashboard pages.
+- Chat interface with dynamic suggestions.
+- SSE-based incremental answer rendering.
+- Optional speech synthesis for assistant output.
+
+Service 2: FastAPI orchestration backend
+- Login endpoint and token issuance.
+- Authenticated query streaming endpoint.
+- LangGraph-based routing among specialist nodes.
+- RAG integration for document-based answers.
+- MCP client wrappers for Spring tools.
+
+Service 3: Spring Boot MCP tool server
+- Tool definitions via @Tool annotations.
+- Repository-driven data access (JPA).
+- MySQL-backed student domain logic.
+- Streamable MCP endpoint at /mcp.
+
+The architectural principle is that LLM-generated text is not allowed to replace data truth. Instead, structured truth is fetched from tools, and unstructured truth is fetched from retrieved document chunks.
+
+2.2 Core features
+The major features implemented in the project are summarized below.
+
+Authentication and role handling
+- Student login validated against hashed password field.
+- ADMIN path enabled for institutional views.
+- JWT claims carry identity and role context.
+
+Student data assistance
+- Profile retrieval by student identifier.
+- Attendance aggregation for month/year contexts.
+- Semester result retrieval.
+- Full attendance listing with subject mapping.
+
+Admin analytics
+- Base dataset for all students.
+- Comprehensive academic overview across students.
+- Semester metrics including attendance and SGPA/CGPA.
+
+Document intelligence via RAG
+- PDF corpus ingestion from documents directory.
+- Chunking and embedding into FAISS vector store.
+- Retriever-backed policy/curriculum responses.
+
+Conversation experience
+- Real-time token-like streaming through SSE.
+- Markdown rendering in assistant responses.
+- Voice read-aloud support on frontend.
+
+Resilience
+- Quota/rate-limit detection logic in agent runtime.
+- Tool-derived fallback response for essential profile output.
+
+2.3 Security architecture
+Security was embedded as a layered design rather than a single login check.
+
+Credential layer
+- Password hashes use Argon2 (passlib context).
+- No plaintext password comparison in normal flow.
+
+Token layer
+- JWT signed with HS256 and secret key.
+- Includes expiry claim to limit token lifespan.
+- Includes role and identity claims for authorization checks.
+
+API layer
+- Protected route dependency decodes token.
+- Rejects invalid, expired, or malformed token payloads.
+- Extracts empno/emp_id for downstream context.
+
+Business layer
+- Admin-only node enforces role-gated operations.
+- Student-specific tools derive ID from token context.
+
+Operational safeguards
+- MCP call timeout guard.
+- Thread timeout guard for async cross-runtime calls.
+- User-friendly fallback messaging on model failure.
+
+
+3. TECHNOLOGY ANALYSIS
+
+3.1 Methodology
+The project followed an iterative implementation methodology with repeated validation loops:
+
+Step 1: Functional baseline setup
+- Configure three servers and basic endpoint communication.
+
+Step 2: Data and auth stabilization
+- Align database schema and credential verification paths.
+
+Step 3: Orchestration and routing improvements
+- Implement and refine supervisor-driven node routing.
+
+Step 4: Tool layer modernization
+- Refactor Spring service into model-repository-service layering.
+
+Step 5: Reliability and UX polishing
+- Add quota fallback behavior and improve frontend streaming.
+
+Step 6: Branding and delivery
+- Final UI alignment and documentation/report generation.
+
+This method allowed independent debugging of each architecture layer while preserving overall system integration.
+
+3.2 Technology stack
+Frontend technologies
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS and Radix-based UI components
+- react-markdown
+
+Python backend technologies
+- FastAPI and Uvicorn
+- LangChain + LangGraph
+- langchain-google-genai
+- FAISS via langchain community integration
+- passlib, argon2-cffi, PyJWT
+- mysql-connector-python
+
+Java backend technologies
+- Java 17
+- Spring Boot 3.4.5
+- Spring Data JPA, Spring Web, Spring Security
+- Spring AI MCP server dependencies
+- Maven build ecosystem
+
+Data and retrieval technologies
+- MySQL relational storage
+- PDF loaders and text splitter for corpus generation
+- Gemini embedding model
+- FAISS local vector index
+
+3.3 Architecture diagram
+
+Fig. 3.1.1 High-Level Three-Server Architecture
+
++--------------------+
+|  Next.js Frontend  |
+|  Login + Chat + UI |
++----------+---------+
+           |
+           | REST + SSE
+           v
++---------------------------+
+|   FastAPI + LangGraph     |
+|   Auth + Routing + Agent  |
++-----------+---------------+
+            |                          
+            | MCP streamable HTTP      
+            v                          
++---------------------------+           +----------------------+
+| Spring Boot MCP Server    |           |   FAISS Vector Store |
+| Tool Service + JPA repos  |           | Retrieved doc chunks |
++------------+--------------+           +----------------------+
+             |
+             | SQL
+             v
++---------------------------+
+| MySQL nitj_student_assist |
++---------------------------+
+
+Fig. 3.1.2 End-to-End Request and Response Flow
+1) User logs in through frontend.
+2) FastAPI validates credentials and issues JWT.
+3) Frontend stores token and sends chat query.
+4) FastAPI validates token and starts agent flow.
+5) Supervisor routes to student/admin/academics node.
+6) Node invokes MCP tool or RAG retriever.
+7) Node generates final response.
+8) FastAPI streams chunks to frontend via SSE.
+
+3.4 Service-level decomposition
+Frontend responsibilities
+- Rendering and state management.
+- Input capture and token attachment.
+- Stream parsing and incremental UI updates.
+
+Python backend responsibilities
+- Request authentication and identity extraction.
+- Conversation routing and LLM orchestration.
+- Tool calls to Spring MCP and document retrieval.
+
+Spring backend responsibilities
+- Domain logic and data shaping.
+- Repository-based query execution.
+- Tool exposure through MCP contracts.
+
+3.5 RAG and MCP interoperability
+A key design contribution of this project is coordinated interoperability between RAG and MCP tools. Instead of forcing a single retrieval source, the supervisor and specialist nodes determine whether the query requires:
+- personal data tools,
+- admin aggregate tools,
+- or academic document retrieval.
+
+This split avoids both data leakage and irrelevant retrieval, and allows each information type to be answered by the most trustworthy source.
+
+
+4. ECONOMIC ANALYSIS
+
+4.1 Cost factors
+Development cost
+- Mostly developer effort and local machine runtime.
+- Minimal infrastructure cost in development environment.
+
+Operational cost
+- LLM API usage contributes variable recurring cost.
+- Potential cloud hosting cost if deployed beyond local network.
+
+Maintenance cost
+- Schema changes require coordinated updates in JPA and tool output structures.
+- Prompt and routing logic may need periodic tuning.
+
+4.2 Cost optimization opportunities
+- Cache frequent policy/document answers.
+- Batch or summarize long context prompts.
+- Introduce model tiering for low-priority queries.
+- Add retrieval confidence thresholds to limit unnecessary calls.
+
+4.3 Value gain
+- Faster access to student and academic information.
+- Lower manual support load for repetitive queries.
+- Improved transparency for attendance and performance data.
+- Foundation for future institutional AI services.
+
+
+5. RESULTS AND DISCUSSION
+
+5.1 Baseline and final system behavior
+Initial baseline behavior in early integration stages included issues around datasource alignment, routing ambiguity, and login schema compatibility. Through iterative fixes, the final system achieved stable behavior across all major user journeys.
+
+Validated outcomes include:
+- Successful login for both student and admin roles.
+- Correct JWT issuance and protected endpoint access.
+- Reliable student profile and attendance retrieval through MCP tools.
+- Successful admin aggregate analytics query handling.
+- Effective document retrieval for policy/curriculum questions.
+- Real-time streamed responses in frontend chat interface.
+
+5.2 Challenges and solutions
+Challenge 1: Incorrect or inconsistent data source alignment
+- Symptom: Tool responses not matching expected student schema.
+- Resolution: Updated Spring datasource to target nitj_student_assistant and aligned repository queries.
+
+Challenge 2: Password handling mismatch
+- Symptom: Student login failure due to plaintext/hash mismatch.
+- Resolution: Adopted Argon2 hash verification path and updated user records.
+
+Challenge 3: Agent not consistently choosing required tools
+- Symptom: Personal queries occasionally routed suboptimally.
+- Resolution: Improved supervisor routing logic and fallback rules.
+
+Challenge 4: LLM quota exhaustion
+- Symptom: Raw error propagation to end-user on quota limits.
+- Resolution: Implemented graceful fallback that builds profile responses via direct tool path.
+
+Challenge 5: Multi-server operational ordering
+- Symptom: Connection failures if services start out of order.
+- Resolution: Defined startup sequence and endpoint health validation routine.
+
+
+6. CONCLUSION
+
+The first part of this report established the problem context, design rationale, architecture strategy, and foundational outcomes for the student assistant system. The solution is not a generic chatbot implementation; it is a deliberately layered information platform combining secure identity, structured data tools, and document-grounded retrieval.
+
+Part I confirms that the selected hybrid architecture is technically sound, economically feasible, and operationally practical for educational institutions that require both personalization and correctness.
+
+
+PART - II
+IMPLEMENTATION, DATABASE, FLOWS, AND OPERATIONS
+
+
+7. INTRODUCTION
+
+7.1 System context for implementation
+Part II focuses on implementation-level details: how each module is coded, how services communicate, how database models map to tools, and how runtime behaviors are validated. The goal is to convert the high-level architecture into concrete implementation artifacts.
+
+7.2 Role-wise usage model
+Student role
+- Authenticates using roll number and password.
+- Asks personalized questions about profile, attendance, and semester outcomes.
+- Can ask general academic policy questions.
+
+Admin role
+- Authenticates with admin credentials.
+- Asks all-student and semester-wide analytics questions.
+- Uses aggregate tools unavailable to students.
+
+7.3 Data and workflow boundaries
+Structured data boundary
+- Student-specific and cohort-specific metrics from relational DB via Spring tools.
+
+Unstructured data boundary
+- Policy and academic documents retrieved by embedding similarity.
+
+Workflow boundary
+- FastAPI orchestration decides source path and combines outputs for response generation.
+
+
+8. PROPOSED IMPLEMENTATION
+
+8.1 Frontend implementation
+The frontend is implemented in Next.js app-router structure with dedicated pages for login and dashboard. The dashboard hosts a chat card component that manages message state, API invocation, and stream parsing.
+
+Login flow
+- User enters roll number and password.
+- Form submits OAuth2-compatible fields to FastAPI /login.
+- On success, JWT token is stored in localStorage.
+- Route transitions to /dashboard.
+
+Dashboard/chat flow
+- Protected route wrapper checks token existence.
+- User query is posted to /ask-me/stream with Authorization header.
+- SSE chunks are parsed and appended character-by-character for typing effect.
+- Assistant messages are rendered with markdown support.
+
+Additional UX features
+- Suggestion badges for common question templates.
+- Optional speech read-aloud button for assistant responses.
+- Automatic redirect to login on 401 responses.
+
+8.2 Python backend implementation
+The Python backend provides two primary APIs and one orchestration runtime.
+
+API layer
+- POST /login: validates credentials and returns JWT.
+- POST /ask-me/stream: validates token and streams agent output.
+
+Security layer
+- Token dependency decodes and verifies JWT.
+- Rejects invalid and expired token paths.
+- Injects identity context for downstream tool access.
+
+Orchestration layer
+- Agent state tracks query, identity, route, and message history.
+- Supervisor node classifies query intent.
+- Student/admin/academics specialist nodes process domain-specific logic.
+- Streaming generator forwards final answer chunks as SSE data events.
+
+Error handling and resilience
+- Empty responses are replaced with safe guidance text.
+- Quota/rate-limit exceptions trigger tool fallback path.
+- Unexpected exceptions are mapped to generic internal error messaging.
+
+8.3 Spring MCP implementation
+Spring Boot module acts as MCP tool server and relational domain service.
+
+Configuration
+- Datasource configured for MySQL schema nitj_student_assistant.
+- MCP streamable endpoint exposed at /mcp.
+
+Domain model
+- Student, AcademicPerformance, StudentAttendance, Subject, Placement, Internship entities.
+- Additional payroll-domain entities exist in repository but student assistant focuses on academic subset.
+
+Repository layer
+- JPA repositories provide sorted and filtered query methods.
+- Batch retrieval methods for admin analytics and joins-by-code.
+
+Service/tool layer
+- StudentToolService defines @Tool methods.
+- Methods shape safe JSON-like maps and lists.
+- Compatibility aliases included for cross-layer expectations.
+
+8.4 API and streaming behavior
+The frontend and backend contract intentionally uses SSE for conversational smoothness. Instead of waiting for a single large response payload, the system emits incremental chunks, allowing perceived latency reduction and better interactivity.
+
+SSE event format
+- Each chunk sent as: data: {"text":"..."}\n\n
+
+Frontend parser behavior
+- Buffers incoming bytes.
+- Splits events by double newline boundary.
+- JSON-decodes each data event.
+- Appends text incrementally to active assistant message.
+
+This model keeps the UI responsive even when backend orchestration includes multi-step tool retrieval and LLM generation.
+
+
+9. DATABASE AND DATA FLOW ANALYSIS
+
+9.1 Database schema
+Primary schema used by assistant: nitj_student_assistant.
+
+Core tables in active assistant domain
+- students
+- academic_performance
+- attendance
+- subjects
+- placements
+- internships
+
+students table roles
+- Authentication anchor via roll_no and hashed_password.
+- Primary identity source for student_id and profile metadata.
+
+academic_performance table roles
+- Semester-level SGPA/CGPA and backlog records.
+- Supports both student and admin analytical views.
+
+attendance table roles
+- Subject-level class attendance totals.
+- Enables aggregate attendance and detailed attendance listings.
+
+subjects table roles
+- Provides semantic mapping for subject_id to readable names/codes.
+
+placements and internships table roles
+- Provides career progression context for admin-level comprehensive reporting.
+
+9.2 ER diagram
+
+Fig. 5.2.1 ER Diagram for Student Assistant Domain (text representation)
+
+students (student_id PK)
+  |--< academic_performance (result_id PK, student_id)
+  |--< attendance (attendance_id PK, student_id, subject_id)
+  |--< placements (placement_id PK, student_id)
+  |--< internships (internship_id PK, student_id)
+
+subjects (subject_id PK)
+  |--< attendance (subject_id)
+
+9.3 Relationships and constraints
+Logical cardinalities
+- One student can have many performance records.
+- One student can have many attendance entries.
+- One subject can appear across many attendance entries.
+- One student can have many placement/internship records over time.
+
+Constraint strategy
+- Entity classes map column-level keys.
+- Service layer performs explicit relation stitching and summarization.
+- Repository methods fetch deterministic sorted records for reproducibility.
+
+9.4 Query paths across modules
+Student profile path
+Frontend -> FastAPI -> LangGraph student_node -> MCP get_student_by_id -> JPA StudentRepository + AcademicPerformanceRepository -> MySQL -> Response stream.
+
+Attendance path
+Frontend -> FastAPI -> student_node -> MCP get_attendance/get_all_attendance_for_student -> StudentAttendanceRepository + SubjectRepository -> MySQL -> Response stream.
+
+Admin semester metrics path
+Frontend -> FastAPI -> admin_node -> MCP admin_get_semester_metrics -> StudentRepository + StudentAttendanceRepository + AcademicPerformanceRepository -> MySQL -> Response stream.
+
+Policy/curriculum path
+Frontend -> FastAPI -> academics_node -> search_documents tool -> FAISS retriever -> context-grounded LLM output -> Response stream.
+
+
+10. OPERATIONAL ANALYSIS
+
+10.1 Deployment and startup sequence
+The system must be started in dependency-aware order.
+
+Recommended sequence
+1) Ensure MySQL is running and schema is available.
+2) Start Spring Boot MCP server.
+3) Start FastAPI orchestration backend.
+4) Start Next.js frontend server.
+5) Validate login and chat endpoint reachability.
+
+If this order is violated, typical failures include MCP connection timeout, authentication endpoint mismatch, or UI-side stream fetch errors.
+
+10.2 Performance and reliability considerations
+Latency contributors
+- LLM generation time.
+- MCP roundtrip and DB query cost.
+- Retriever and embedding search time (query-time retrieval only).
+
+Reliability controls present
+- MCP operation timeout.
+- MCP thread timeout.
+- Stream-safe error handling in API layer.
+- Quota fallback for certain high-frequency personal queries.
+
+Scalability considerations
+- Frontend can scale independently via CDN/edge deployment.
+- FastAPI can scale with worker processes and token cache.
+- Spring MCP can scale as stateless app behind load balancer.
+- DB indexing and query tuning required for larger student populations.
+
+10.3 Security and compliance considerations
+Authentication and authorization
+- Role claim and expiry claim required in JWT.
+- Unauthorized admin query attempts are blocked.
+
+Data handling
+- Sensitive credentials handled through environment variables.
+- Hashed passwords are not reversible.
+
+Audit and governance extensions (recommended)
+- Per-tool audit logs with user identifiers.
+- Rate limiting per token and endpoint.
+- PII masking in logs and observability pipelines.
+
+
+11. RESULTS AND DISCUSSION
+
+11.1 Validation outcomes
+Functional validation matrix
+
+Login validation
+- Student login: success with valid credentials.
+- Admin login: success via admin path.
+- Invalid user: clean 401 response.
+
+Token validation
+- Missing token: rejected at protected endpoint.
+- Invalid token: rejected with authorization error.
+- Expired token: rejected with expiry message.
+
+Tool validation
+- Student profile tool returns identity and academic snapshot.
+- Attendance tools return aggregates and detailed records.
+- Admin tools return all-student dataset and metrics.
+
+RAG validation
+- Policy queries return context-informed responses from indexed docs.
+- Non-covered queries are handled with polite uncertainty.
+
+Streaming validation
+- SSE events parsed correctly on frontend.
+- Incremental UI rendering confirmed.
+
+11.2 Limitations and improvement areas
+Current limitations
+- LLM quota dependency affects peak reliability.
+- In-memory checkpointing is not distributed-session aware.
+- Some relationship constraints are logical rather than strict FK-enforced in ORM mappings.
+- Report-level analytics dashboards are still conversational, not chart-native.
+
+Improvement opportunities
+- Persistent conversation memory via Redis or DB-backed checkpointer.
+- Hybrid reranking for better RAG precision.
+- Structured prompt templates with confidence and citation controls.
+- Async batching for admin heavy aggregate queries.
+- Advanced role model (faculty/HOD/dean).
+
+
+12. CONCLUSION AND FUTURE WORK
+
+12.1 Conclusion
+This project successfully demonstrates a practical, extensible, and institution-ready architecture for AI-assisted academic information systems. The system integrates conversational interaction with deterministic data retrieval and policy-document intelligence while preserving security boundaries and role-aware behavior.
+
+The most important technical contribution is the explicit separation of concerns:
+- Next.js provides a responsive and user-friendly conversation interface.
+- FastAPI + LangGraph provides orchestration, control flow, and trust-aware decision routing.
+- Spring Boot MCP provides durable domain logic and relational truth.
+
+The combined design avoids typical pitfalls of standalone LLM chat systems and provides a path toward production-grade academic assistants.
+
+12.2 Future work
+Short-term enhancements
+- Add standardized health-check endpoints for each server.
+- Add explicit query and response telemetry with anonymization.
+- Improve prompt routing with deterministic pattern libraries.
+
+Medium-term enhancements
+- Introduce fine-grained RBAC beyond student/admin.
+- Add dashboard visualizations for admin metrics.
+- Add multi-language support.
+- Add document citation snippets in answers.
+
+Long-term enhancements
+- Containerized deployment with orchestration.
+- Managed vector database for larger corpus scale.
+- Institutional integration with ERP/LMS systems.
+- Offline-first fallback mode for low-connectivity scenarios.
+
+
+REFERENCES
+
+1) FastAPI Official Documentation
+https://fastapi.tiangolo.com/
+
+2) Next.js Official Documentation
+https://nextjs.org/docs
+
+3) React Official Documentation
+https://react.dev/
+
+4) Spring Boot Official Documentation
+https://spring.io/projects/spring-boot
+
+5) Spring AI Reference Documentation
+https://docs.spring.io/spring-ai/reference/
+
+6) LangChain Documentation
+https://python.langchain.com/
+
+7) LangGraph Documentation
+https://langchain-ai.github.io/langgraph/
+
+8) FAISS (Facebook AI Similarity Search)
+https://github.com/facebookresearch/faiss
+
+9) JSON Web Token (JWT) RFC 7519
+https://datatracker.ietf.org/doc/html/rfc7519
+
+10) OWASP Authentication and Password Storage Guidelines
+https://owasp.org/
+
+
+APPENDIX A: TOOL INVENTORY USED BY ORCHESTRATOR
+
+Student-facing tools
+- get_student_by_id
+- get_attendance
+- get_semester_results
+- get_all_attendance_for_student
+- search_documents
+
+Admin-facing tools
+- get_all_students_data
+- get_all_students_academic_information
+- admin_get_semester_metrics
+
+
+APPENDIX B: FRONTEND-TO-BACKEND MESSAGE CONTRACTS
+
+Login request
+- Content-Type: application/x-www-form-urlencoded
+- Body: username, password
+
+Login response
+- JSON: access_token, token_type
+
+Ask stream request
+- Content-Type: application/json
+- Authorization: Bearer <token>
+- Body: query
+
+Ask stream response
+- Content-Type: text/event-stream
+- Event payload: data: {"text": "..."}
+
+
+APPENDIX C: RUNBOOK (LOCAL EXECUTION)
+
+1) Start MySQL service.
+2) Start Spring app in demo module.
+3) Start FastAPI app.
+4) Start Next.js dashboard app.
+5) Open login page and authenticate.
+6) Ask test queries:
+   - "What is my CGPA?"
+   - "Show my attendance this semester"
+   - "What is the academic leave policy?"
+   - Admin: "Show semester metrics for all students"
+
+
+APPENDIX D: SAMPLE VALIDATION CHECKLIST
+
+Authentication checklist
+- [ ] Student login valid
+- [ ] Admin login valid
+- [ ] Invalid login rejected
+
+Authorization checklist
+- [ ] Student cannot execute admin aggregate intents
+- [ ] Admin queries execute successfully
+
+Data correctness checklist
+- [ ] Student profile fields map correctly
+- [ ] Attendance totals and percentages are coherent
+- [ ] SGPA/CGPA map from latest relevant records
+
+RAG checklist
+- [ ] Relevant policy docs retrieved
+- [ ] Unknown question handled safely
+
+Operational checklist
+- [ ] Spring MCP reachable from Python backend
+- [ ] SSE chunks received on frontend
+- [ ] Quota fallback path returns meaningful response
+
+APPENDIX E: DETAILED ENTITY AND FIELD NOTES
+
+E1. students entity detailed interpretation
+The students table is the principal identity anchor for all student-focused operations in this assistant. The student_id field is treated as the canonical key in service orchestration, while roll_no is accepted as user-facing login identity. This dual identity pattern is useful in institutional systems where internal IDs and academic roll numbers coexist. The table stores demographic and academic-context fields such as department, semester, program, section, batch year, and admission year. It also stores operational fields needed by campus workflows, including hostel name and room number.
+
+From a security perspective, the most important field is hashed_password. The report emphasizes that hashed_password is verified through Argon2 and is not used in plaintext comparisons. This design prevents accidental credential leakage in normal operations and aligns with current secure password storage practices.
+
+E2. academic_performance entity detailed interpretation
+academic_performance captures semester-level progression metrics for a student. Fields such as sgpa, cgpa, backlogs, and academic_year provide the minimum set needed for both personalized responses and comparative admin analytics. Because institutions often store multiple entries over time for similar semester periods, the service layer uses ordering by result_id to pick most recent records where needed. This is important for avoiding stale responses.
+
+E3. attendance entity detailed interpretation
+attendance stores subject-level participation metrics with total_classes, attended_classes, and attendance_percentage. In assistant responses, these records are used in two ways: (1) per-subject detailed outputs, and (2) aggregated attendance computations. The project implements compatibility aliases like total_days and present_days for frontend and conversational clarity without altering underlying schema.
+
+E4. subjects entity detailed interpretation
+subjects is a metadata table that enriches attendance records with human-readable subject names and codes. This enrichment allows chat responses like "Your attendance in Data Structures is 82%" instead of subject identifier-only outputs. The service layer links attendance and subject data through subject_id mapping.
+
+E5. placements and internships entity detailed interpretation
+placements and internships support extended student lifecycle analytics for admin-level context. Even when a student query does not directly request career data, these entities enrich comprehensive reports and can support future recommendation flows.
+
+
+APPENDIX F: DETAILED SEQUENCE FLOWS (TEXTUAL)
+
+F1. full login sequence
+Step 1: User enters roll number and password in frontend form.
+Step 2: Frontend sends POST request to /login using form-url-encoded payload because backend expects OAuth2-compatible fields.
+Step 3: Backend checks if username corresponds to admin path; if not, it queries students table by roll_no.
+Step 4: Backend verifies provided password against Argon2 hash.
+Step 5: On success, backend signs JWT with role, identity, and expiry claims.
+Step 6: Frontend stores access_token and navigates to dashboard.
+Step 7: Protected routes start using token in Authorization header.
+
+F2. full student query sequence
+Step 1: Student types question in chat card.
+Step 2: Frontend sends POST /ask-me/stream with bearer token.
+Step 3: FastAPI validates token and extracts emp_id/empno claims.
+Step 4: FastAPI invokes run_student_agent with query and session_id.
+Step 5: LangGraph supervisor evaluates intent.
+Step 6: student_node runs with tool-enabled agent.
+Step 7: Tool wrappers call Spring MCP endpoint /mcp with required arguments.
+Step 8: Spring tool method queries repositories and prepares response map/list.
+Step 9: Python node converts output into assistant-friendly answer.
+Step 10: FastAPI streams response chunks to frontend via SSE.
+Step 11: Frontend parses each chunk and renders incremental text.
+
+F3. full admin query sequence
+Step 1: Admin logs in and receives ADMIN role token.
+Step 2: Query enters FastAPI orchestration.
+Step 3: Supervisor routes to admin_node.
+Step 4: admin_node validates that emp_id equals ADMIN.
+Step 5: Admin tool function executes through MCP.
+Step 6: Spring service aggregates all-student metrics using repository calls.
+Step 7: Response is shaped and streamed.
+Step 8: Frontend renders summarized insights.
+
+F4. full academics query (RAG) sequence
+Step 1: User asks policy/curriculum question.
+Step 2: Supervisor routes to academics_node.
+Step 3: search_documents tool invokes retriever.
+Step 4: Retriever loads top-k chunks from FAISS index.
+Step 5: LLM prompt is constructed using retrieved context.
+Step 6: Response generated with "answer based on docs" instruction.
+Step 7: Output streamed to frontend.
+
+F5. failure and fallback sequence
+Step 1: During node execution, model returns rate limit or quota exception.
+Step 2: Exception text contains indicators such as 429 or resource_exhausted.
+Step 3: Backend enters fallback routine.
+Step 4: get_student_by_id tool is called directly.
+Step 5: Profile summary is assembled from deterministic fields.
+Step 6: User receives meaningful response instead of raw stack trace.
+
+
+APPENDIX G: TESTING AND VALIDATION DETAIL
+
+G1. authentication test cases
+Case A: Valid student credentials
+Expected: 200 with access_token.
+Observed: pass.
+
+Case B: Invalid student ID
+Expected: 401 invalid student ID.
+Observed: pass.
+
+Case C: Wrong password
+Expected: 401 invalid credentials.
+Observed: pass.
+
+Case D: Admin credentials
+Expected: admin token generated.
+Observed: pass.
+
+G2. authorization test cases
+Case A: Missing token on /ask-me/stream
+Expected: 401 unauthorized.
+Observed: pass.
+
+Case B: Expired token
+Expected: token expired error.
+Observed: pass.
+
+Case C: Student attempting admin aggregate intent
+Expected: blocked from admin-only path.
+Observed: pass.
+
+G3. tool correctness test cases
+Case A: get_student_by_id for valid student
+Expected: profile + latest academic fields.
+Observed: pass.
+
+Case B: get_attendance with empty-year semantics
+Expected: aggregated attendance.
+Observed: pass.
+
+Case C: get_all_attendance_for_student
+Expected: subject-enriched list output.
+Observed: pass.
+
+Case D: admin_get_semester_metrics
+Expected: all-student rows with semester-wise fields.
+Observed: pass.
+
+G4. rag correctness test cases
+Case A: query present in policy docs
+Expected: context-aware answer.
+Observed: pass.
+
+Case B: query outside provided corpus
+Expected: polite uncertainty statement.
+Observed: pass.
+
+G5. integration test notes
+The most significant integration risk area was not framework compatibility but data-contract alignment. Once contracts were stabilized for identity keys, table names, and tool payload structures, end-to-end behavior became predictable.
+
+G6. frontend interaction test notes
+SSE parsing logic was validated for:
+- multiple chunk events,
+- final buffer flush,
+- malformed partial chunk handling,
+- retry behavior after transient errors.
+
+Voice read-aloud was validated in browser environments with speech synthesis support.
+
+
+APPENDIX H: DESIGN TRADEOFFS AND FUTURE ARCHITECTURE PATH
+
+H1. why mcp over direct db from python
+Direct database access from Python could reduce one hop, but would mix orchestration and domain logic in one service and duplicate query logic over time. MCP with Spring service layer keeps domain logic close to repositories and allows typed tool contracts.
+
+H2. why langgraph routing over single prompt
+Single-prompt systems are simpler but less controllable under mixed-intent institutional queries. LangGraph enables explicit route boundaries and is better suited for role-sensitive operations.
+
+H3. why local faiss in current phase
+Local FAISS keeps deployment simple for pilot-stage development and avoids external vector DB setup overhead. It provides sufficient retrieval quality for moderate document corpus sizes.
+
+H4. limitations accepted in current phase
+- in-memory checkpointer,
+- minimal observability,
+- absence of distributed cache.
+
+These were accepted to prioritize correctness and integration completeness first.
+
+H5. migration path to production grade
+Phase 1: containerize three services.
+Phase 2: add centralized logging and tracing.
+Phase 3: adopt managed DB and managed vector search.
+Phase 4: add SSO and enterprise RBAC.
+Phase 5: add active monitoring, alerting, and automated failover.
+
+H6. governance and quality controls roadmap
+- prompt policy versioning,
+- tool contract versioning,
+- schema migration discipline,
+- security audit checkpoints,
+- response quality regression tests.
+
+
+END OF REPORT
+
+APPENDIX I: EXTENDED IMPLEMENTATION NARRATIVE (CHAPTER-WISE)
+
+I1. Extended narrative for Chapter 1 (Introduction)
+The student assistant problem appears simple when observed only from user interaction perspective, but it is technically multi-dimensional. Students expect instant, accurate answers, and they do not usually distinguish whether the answer came from a database query, a policy document, or a language model. This makes architecture responsibility critical. If a system provides fluent but incorrect responses, user trust declines quickly. If it provides deterministic but non-conversational responses, adoption declines because interaction friction remains high. The selected architecture solves this by dividing information responsibilities and preserving a conversational interface as the common entry point.
+
+Another important element in this chapter is data sensitivity. Student records include identifying and academic information. Therefore, identity validation cannot be an optional feature. The implemented design treats authentication and authorization as mandatory checks before any personalized response path begins. This is particularly important because AI layers can unintentionally overreach when prompts are vague; strict token and role boundaries avoid this class of risks.
+
+I2. Extended narrative for Chapter 2 (Proposed Solution)
+The chosen solution emphasizes protocol-defined integration rather than ad-hoc service calls. MCP-based tools from Spring provide a clean abstraction boundary: the Python orchestrator does not need direct SQL or schema-level assumptions for every query. Instead, it calls named tools with controlled arguments and receives structured outputs. This design reduces coupling and allows the Java domain service to evolve independently while preserving behavior contracts.
+
+From user perspective, this architecture remains invisible and intuitive. A student asks, "Show my attendance this semester," and receives a contextual answer. Internally, however, multiple controls execute in order: token validation, route selection, tool invocation, data transformation, and stream formatting. This layered orchestration is what enables reliability.
+
+I3. Extended narrative for Chapter 3 (Technology Analysis)
+Technology selection in this project is not trend-driven; it is requirement-driven. Next.js is chosen because it supports componentized UI with robust routing and client interaction controls. FastAPI is chosen for rapid and explicit API composition with lightweight async support. Spring Boot is chosen for enterprise-ready data and service layering, which is particularly valuable for institutional domains that evolve over time.
+
+LangGraph is chosen because deterministic node routing is preferable to monolithic prompting in role-sensitive systems. FAISS is chosen for local retrieval simplicity and performance in moderate corpus size. Together, these choices create a cohesive stack where each framework contributes to a specific reliability requirement rather than overlapping responsibilities.
+
+I4. Extended narrative for Chapter 4 (Economic Analysis)
+Institutional projects must justify ongoing operational viability. This solution keeps initial cost low by relying on open-source frameworks and local execution capability. The major variable cost is model usage, which can be managed through prompt optimization, retrieval-first routing, and selective fallback behavior. Another economic gain comes from reduced support burden: repetitive student inquiries can be offloaded to the assistant while still maintaining institutional correctness boundaries.
+
+Long-term cost governance can include internal model alternatives, caching frequently asked policy answers, and monitoring expensive query patterns. Such controls can preserve user experience while stabilizing recurring expenditure.
+
+I5. Extended narrative for Chapter 5 (Results and Discussion)
+A key result is not just endpoint success but integration maturity. The project moved through practical debugging stages such as datasource mismatch, login schema mismatch, and routing ambiguity. Resolving these produced a platform that behaves coherently under both normal and constrained conditions. The fallback behavior for quota limits is especially meaningful in real deployments, where external model services may occasionally degrade.
+
+Another important result is architectural maintainability. After refactoring Spring logic into model-repository-service layering, tool behaviors became easier to reason about and extend. This indicates that future institutional requirements can be incorporated without destabilizing the orchestration layer.
+
+I6. Extended narrative for Chapter 7 and Chapter 8 (Advanced Layer)
+The advanced layer validates that multi-modal query handling can be practical in a single assistant. Different question types are not forced into one retrieval strategy. Instead, routing decides the source of truth for each query family. This reduces both hallucination and irrelevant data access.
+
+This chapter also confirms that service boundaries can improve debugging. Frontend issues, orchestration issues, and tool/data issues can be isolated quickly because each service has defined responsibilities and contracts. Such separation is crucial for teams where frontend, backend, and data services are maintained by different contributors.
+
+I7. Extended narrative for Chapter 9 (Database and Relationships)
+The data model supports academic lifecycle visibility. Attendance captures engagement at subject level, performance captures semester outcomes, and placement/internship captures career readiness indicators. While current tooling focuses on core student support and admin analytics, this schema can power future features such as risk scoring, intervention prioritization, or recommendation flows.
+
+A notable engineering observation is that relationship enforcement exists both in schema semantics and in service-layer aggregation. Even where explicit ORM relationship annotations are minimal, service logic ensures consistent stitching of records for output correctness.
+
+I8. Extended narrative for Chapter 10 (Operational Analysis)
+Operations in multi-server systems are often undermined by startup dependency assumptions. This project addresses that by defining sequence order and handling timeout boundaries. Another operation-focused insight is that user-facing reliability does not require eliminating all failures; it requires graceful failure handling. The fallback mechanism implemented here follows that principle and improves trust continuity.
+
+I9. Extended narrative for Chapter 11 and Chapter 12 (Future Outlook)
+The project establishes a strong baseline for campus-scale AI systems. The next maturity steps include persistent memory, richer role hierarchy, stronger observability, and policy-governed prompt/tool versioning. These additions can convert the current implementation from pilot-grade to institution-wide operational grade.
+
+In conclusion, this project demonstrates that educational assistants should be engineered as integrated systems rather than prompt-only applications. Trust, correctness, and maintainability emerge when conversational AI is anchored to deterministic tools and governed retrieval pathways.
+

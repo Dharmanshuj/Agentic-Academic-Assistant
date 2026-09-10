@@ -9,70 +9,97 @@ from security.masking import apply_masking
 from security.audit_logger import log_tool_usage, log_security_event
  
 @tool
-def get_all_employees_data():
-    """Query data for all employees. ONLY allowed for ADMIN user."""
+def get_all_students_data():
+    """Query data for all students. ONLY allowed for ADMIN user."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT empno, name, dept, designation, net_pay
-        FROM employee
+        SELECT
+            s.roll_no,
+            TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS name,
+            s.department,
+            s.semester,
+            ap.cgpa
+        FROM students s
+        LEFT JOIN academic_performance ap
+            ON ap.student_id = s.student_id
+            AND ap.semester = s.semester
     """)
     rows = cursor.fetchall()
-    records = [{"empno": r[0], "name": r[1], "dept": r[2], "designation": r[3], "net_pay": r[4]} for r in rows]
+    records = [{"roll_no": r[0], "name": r[1], "department": r[2], "semester": r[3], "cgpa": r[4]} for r in rows]
     conn.close()
     return records
  
  
 @tool
-def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] = None):
-    """Admin tool to get attendance and salary payments for all employees across a given month."""
+def admin_get_semester_metrics(semester: Optional[int] = None, year: Optional[int] = None):
+    """Admin tool to get attendance and academic metrics for all students in a given semester."""
     conn = get_connection()
     cursor = conn.cursor()
-    # If no month/year is specified, fetch the most recent global month deployed
-    if month and year:
+    if semester:
         query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
-            FROM employee e
-            LEFT JOIN attendance a ON e.empno = a.empno AND a.month = %s AND a.year = %s
-            LEFT JOIN salary_payment s ON a.id = s.attendance_id
+            SELECT
+                s.roll_no,
+                TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS name,
+                s.department,
+                s.semester,
+                ap.sgpa,
+                ap.cgpa,
+                ROUND(
+                    CASE WHEN SUM(a.total_classes) > 0
+                        THEN (SUM(a.attended_classes) * 100.0 / SUM(a.total_classes))
+                        ELSE 0
+                    END,
+                    2
+                ) AS attendance_percentage
+            FROM students s
+            LEFT JOIN attendance a ON s.student_id = a.student_id
+            LEFT JOIN academic_performance ap ON s.student_id = ap.student_id AND ap.semester = s.semester
+            WHERE s.semester = %s
+            GROUP BY s.student_id, s.roll_no, s.first_name, s.last_name, s.department, s.semester, ap.sgpa, ap.cgpa
         """
-        cursor.execute(query, (month, year))
-    elif year:
-        query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
-            FROM employee e
-            LEFT JOIN attendance a ON e.empno = a.empno AND a.year = %s
-            LEFT JOIN salary_payment s ON a.id = s.attendance_id
-        """
-        cursor.execute(query, (year,))
+        cursor.execute(query, (semester,))
     else:
         query = """
-            SELECT e.empno, e.name, a.total_days, a.present_days, a.absent_days, s.final_salary, a.month, a.year
-            FROM employee e
-            LEFT JOIN attendance a ON e.empno = a.empno AND a.year = 2026
-            LEFT JOIN salary_payment s ON a.id = s.attendance_id
+            SELECT
+                s.roll_no,
+                TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS name,
+                s.department,
+                s.semester,
+                ap.sgpa,
+                ap.cgpa,
+                ROUND(
+                    CASE WHEN SUM(a.total_classes) > 0
+                        THEN (SUM(a.attended_classes) * 100.0 / SUM(a.total_classes))
+                        ELSE 0
+                    END,
+                    2
+                ) AS attendance_percentage
+            FROM students s
+            LEFT JOIN attendance a ON s.student_id = a.student_id
+            LEFT JOIN academic_performance ap ON s.student_id = ap.student_id AND ap.semester = s.semester
+            GROUP BY s.student_id, s.roll_no, s.first_name, s.last_name, s.department, s.semester, ap.sgpa, ap.cgpa
         """
         cursor.execute(query)
     rows = cursor.fetchall()
     records = []
     for r in rows:
         records.append({
-            "empno": r[0],
+            "roll_no": r[0],
             "name": r[1],
-            "total_days": r[2],
-            "present_days": r[3],
-            "absent_days": r[4],
-            "inhand_net_pay": r[5],
-            "month": r[6],
-            "year": r[7]
+            "department": r[2],
+            "semester": r[3],
+            "sgpa": r[4],
+            "cgpa": r[5],
+            "attendance_percentage": r[6]
         })
     conn.close()
     return records
  
 @tool
-def get_employee_by_id(emp_id: str):
-    """Query employee by ID and return sanitized JSON record.
-    emp_id is taken as input which is str and is employee id"""
+def get_student_by_id(student_id: str):
+    """Query student by ID and return sanitized JSON record.
+    student_id is taken as input which is str and is student roll number"""
  
     conn = get_connection()
     cursor = conn.cursor()
@@ -80,95 +107,88 @@ def get_employee_by_id(emp_id: str):
     cursor.execute(
         """
         SELECT
-            name,
-            dept,
-            designation,
-            bank_name,
-            account_no,
-            basic_salary,
-            hra,
-            conveyance,
-            medical,
-            special,
-            gross_salary,
-            epf,
-            health_insurance,
-            professional_tax,
-            tds,
-            total_deductions,
-            net_pay
-        FROM employee
-        WHERE empno = %s
+            student_id,
+            roll_no,
+            TRIM(CONCAT(first_name, ' ', COALESCE(last_name, ''))) AS name,
+            department,
+            program,
+            semester,
+            section,
+            batch_year,
+            admission_year,
+            hostel_name,
+            room_no,
+            email,
+            phone,
+            guardian_name,
+            guardian_phone,
+            address
+        FROM students
+        WHERE roll_no = %s OR student_id = %s
+        LIMIT 1
         """,
-        (emp_id,)
+        (student_id, student_id)
     )
  
     r = cursor.fetchone()
  
     if not r:
-        log_security_event("Unauthorized access attempt to employee data", details={"emp_id": emp_id})
-        return "Employee not found."
+        log_security_event("Unauthorized access attempt to student data", details={"student_id": student_id})
+        return "Student not found."
  
     record = {
-        "name": r[0],
-        "department": r[1],
-        "designation": r[2],
-        "bank_name": r[3],
-        "account_no": r[4],
-        "basic_salary": r[5],
-        "hra": r[6],
-        "conveyance": r[7],
-        "medical": r[8],
-        "special": r[9],
-        "gross_salary": r[10],
-        "epf": r[11],
-        "health_insurance": r[12],
-        "professional_tax": r[13],
-        "tds": r[14],
-        "total_deductions": r[15],
-        "net_pay": r[16]
- 
+        "student_id": r[0],
+        "roll_no": r[1],
+        "name": r[2],
+        "department": r[3],
+        "program": r[4],
+        "semester": r[5],
+        "section": r[6],
+        "batch_year": r[7],
+        "admission_year": r[8],
+        "hostel_name": r[9],
+        "room_no": r[10],
+        "email": r[11],
+        "phone": r[12],
+        "guardian_name": r[13],
+        "guardian_phone": r[14],
+        "address": r[15],
     }
  
-    #record = validate_query(record)
     record = filter_records([record])[0]
- 
     record = apply_masking(record)
- 
-    # log_tool_usage("query_employee_by_id", details={"emp_id": emp_id})
  
     conn.close()
  
     return record
  
 @tool
-def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int] = None):
+def get_attendance(student_id: str, month: Optional[int] = None, year: Optional[int] = None):
     """
-    Get attendance for employee for a specific month or year.
+    Get attendance for student for a specific month or year.
     """
     conn = get_connection()
     cursor = conn.cursor()
  
-    if month and year:
-        cursor.execute(
-            """
-            SELECT id, total_days, present_days, absent_days, month, year
-            FROM attendance
-            WHERE empno = %s AND month = %s AND year = %s
-            """,
-            (emp_id, month, year)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT id, total_days, present_days, absent_days, month, year
-            FROM attendance
-            WHERE empno = %s
-            ORDER BY year DESC, month DESC
-            LIMIT 1
-            """,
-            (emp_id,)
-        )
+    cursor.execute(
+        """
+        SELECT
+            MIN(a.attendance_id) AS attendance_id,
+            COALESCE(SUM(a.total_classes), 0) AS total_classes,
+            COALESCE(SUM(a.attended_classes), 0) AS attended_classes,
+            ROUND(
+                CASE WHEN SUM(a.total_classes) > 0
+                    THEN (SUM(a.attended_classes) * 100.0 / SUM(a.total_classes))
+                    ELSE 0
+                END,
+                2
+            ) AS attendance_percentage
+        FROM attendance a
+        JOIN students s ON a.student_id = s.student_id
+        WHERE s.roll_no = %s OR s.student_id = %s
+        """,
+        (student_id, student_id)
+    )
  
     r = cursor.fetchone()
     conn.close()
@@ -178,25 +198,36 @@ def get_attendance(emp_id: str, month: Optional[int] = None, year: Optional[int]
  
     return {
         "attendance_id": r[0],
+        "total_classes": r[1],
+        "attended_classes": r[2],
+        "attendance_percentage": r[3],
+        # Compatibility aliases for existing prompts/UI
         "total_days": r[1],
         "present_days": r[2],
-        "absent_days": r[3],
-        "month_recorded": r[4],
-        "year_recorded": r[5]
+        "absent_days": max((r[1] or 0) - (r[2] or 0), 0),
     }
+
 @tool
-def get_salary_payment(attendance_id: int):
+def get_semester_results(attendance_id: int):
     """
-    Fetch final in-hand salary based on attendance ID.
+    Fetch semester results/SGPA based on attendance ID.
     """
     conn = get_connection()
     cursor = conn.cursor()
  
     cursor.execute(
         """
-        SELECT final_salary
-        FROM salary_payment
-        WHERE attendance_id = %s
+        SELECT
+            ap.semester,
+            ap.sgpa,
+            ap.cgpa,
+            ap.backlogs,
+            ap.academic_year
+        FROM attendance a
+        JOIN academic_performance ap ON ap.student_id = a.student_id
+        WHERE a.attendance_id = %s
+        ORDER BY ap.semester DESC
+        LIMIT 1
         """,
         (attendance_id,)
     )
@@ -208,37 +239,38 @@ def get_salary_payment(attendance_id: int):
         return None
  
     return {
-        "final_salary": r[0]
+        "semester": r[0],
+        "sgpa": r[1],
+        "cgpa": r[2],
+        "backlogs": r[3],
+        "academic_year": r[4]
     }
  
 @tool
-def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
+def get_all_attendance_for_student(student_id: str, year: Optional[int] = None):
     """
-    Get all attendance records for an employee across all months for a specific year.
+    Get all attendance records for a student across all months for a specific year.
     """
     conn = get_connection()
     cursor = conn.cursor()
  
-    if year:
-        cursor.execute(
-            """
-            SELECT id, total_days, present_days, absent_days, month, year
-            FROM attendance
-            WHERE empno = %s AND year = %s
-            ORDER BY year DESC, month DESC
-            """,
-            (emp_id, year)
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT id, total_days, present_days, absent_days, month, year
-            FROM attendance
-            WHERE empno = %s
-            ORDER BY year DESC, month DESC
-            """,
-            (emp_id,)
-        )
+    cursor.execute(
+        """
+        SELECT
+            a.attendance_id,
+            a.subject_id,
+            sub.subject_name,
+            a.total_classes,
+            a.attended_classes,
+            a.attendance_percentage
+        FROM attendance a
+        JOIN students s ON a.student_id = s.student_id
+        LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
+        WHERE s.roll_no = %s OR s.student_id = %s
+        ORDER BY a.attendance_id DESC
+        """,
+        (student_id, student_id)
+    )
  
     rows = cursor.fetchall()
     conn.close()
@@ -250,11 +282,15 @@ def get_all_attendance_for_employee(emp_id: str, year: Optional[int] = None):
     for r in rows:
         records.append({
             "attendance_id": r[0],
-            "total_days": r[1],
-            "present_days": r[2],
-            "absent_days": r[3],
-            "month": r[4],
-            "year": r[5]
+            "subject_id": r[1],
+            "subject_name": r[2],
+            "total_classes": r[3],
+            "attended_classes": r[4],
+            "attendance_percentage": r[5],
+            # Compatibility aliases
+            "total_days": r[3],
+            "present_days": r[4],
+            "absent_days": max((r[3] or 0) - (r[4] or 0), 0),
         })
  
     return records

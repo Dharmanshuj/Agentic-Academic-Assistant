@@ -22,7 +22,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         if not empno:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is missing employee number")
 
-        role = payload.get("role") or ("ADMIN" if empno == "ADMIN" else "EMPLOYEE")
+        role = payload.get("role") or ("ADMIN" if empno == "ADMIN" else "STUDENT")
         name = payload.get("name") or payload.get("sub") or empno
 
         return {

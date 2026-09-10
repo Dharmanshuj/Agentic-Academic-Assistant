@@ -30,7 +30,7 @@ const DEFAULT_BACKGROUND = "/images/background.png"
 export default function PolarLandingPage() {
   const router = useRouter()
   const [backgroundImage, setBackgroundImage] = useState(DEFAULT_BACKGROUND)
-  const [userName, setUserName] = useState("Employee")
+  const [userName, setUserName] = useState("Student")
   const [isAdmin, setIsAdmin] = useState(false)
   const [showModal, setShowModal] = useState(false)
 
@@ -90,14 +90,14 @@ export default function PolarLandingPage() {
                     href="/dashboard/admin/update-attendance"
                     className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left text-sm text-white/90 hover:bg-white/10 transition-colors border border-white/10"
                   >
-                    <span>Update existing employee</span>
+                    <span>Update existing student</span>
                     <span className="text-white/40">›</span>
                   </Link>
                   <Link
                     href="/dashboard/admin/register"
                     className="flex w-full items-center justify-between rounded-xl bg-white/5 p-4 text-left text-sm text-white/90 hover:bg-white/10 transition-colors border border-white/10"
                   >
-                    <span>Register new employee</span>
+                    <span>Register new student</span>
                     <span className="text-white/40">›</span>
                   </Link>
                 </div>

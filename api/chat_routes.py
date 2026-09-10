@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from database.db import get_connection
 
-from agents.agents import run_salary_agent
+from agents.agents import run_student_agent
 from services.security_service import get_current_user
 from services.auth_services import hash_password, verify_password, create_access_token
 
@@ -37,19 +37,32 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
 
     conn = get_connection()
     users_db = conn.cursor()
-
-    users_db.execute(
-        "SELECT empno, name, hashed_password FROM employee WHERE empno = %s",
-        (credentials.username,)
-    )
+    try:
+        users_db.execute(
+            """
+            SELECT
+                roll_no,
+                TRIM(CONCAT(first_name, ' ', COALESCE(last_name, ''))),
+                hashed_password
+            FROM students
+            WHERE roll_no = %s
+            """,
+            (credentials.username,)
+        )
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Login schema mismatch: ensure table 'students' has column 'hashed_password'. ({exc})",
+        )
 
     user = users_db.fetchone()
     conn.close()
 
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid employee ID")
+        raise HTTPException(status_code=401, detail="Invalid student ID")
 
-    empno, name, hashed_password_db = user
+    roll_number, name, hashed_password_db = user
 
     if not hashed_password_db:
         raise HTTPException(status_code=400, detail="User not registered")
@@ -57,7 +70,7 @@ async def login(credentials: OAuth2PasswordRequestForm = Depends()):
     if not verify_password(credentials.password, hashed_password_db):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token(empno, name)
+    token = create_access_token(roll_number, name)
 
     return {"access_token": token, "token_type": "bearer"}
 
@@ -84,12 +97,12 @@ async def ask_payroll_stream(
 
     empno = user.get("empno")
     if not empno:
-        raise HTTPException(status_code=401, detail="Unable to determine employee number from token")
+        raise HTTPException(status_code=401, detail="Unable to determine roll number from token")
 
     session_id = empno
     
     async def stream_generator():
-        async for chunk in run_salary_agent(request.query, empno, session_id):
+        async for chunk in run_student_agent(request.query, empno, session_id):
             payload = json.dumps({"text": chunk})
             yield f"data: {payload}\n\n"
 

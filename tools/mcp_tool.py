@@ -70,15 +70,15 @@ def _run(name: str, args: dict) -> dict:
         return {"raw_response": raw}
 
 
-# ── Payroll Tools ────────────────────────────────────────────────────────────
+# ── Student Tools ────────────────────────────────────────────────────────────
 
 @tool
-def get_employee_by_id(config: RunnableConfig):
-    """Query your employee profile and return sanitized JSON record. Do not pass any arguments."""
+def get_student_by_id(config: RunnableConfig):
+    """Query your student profile and return sanitized JSON record. Do not pass any arguments."""
     emp_id = config.get("configurable", {}).get("emp_id")
     if not emp_id:
-        return json.dumps({"error": "Employee ID not found in context."})
-    return _run("get_employee_by_id", {"empId": emp_id})
+        return json.dumps({"error": "Student ID not found in context."})
+    return _run("get_student_by_id", {"studentId": emp_id})
 
 
 @tool
@@ -86,41 +86,41 @@ def get_attendance(config: RunnableConfig, month: Optional[int] = None, year: Op
     """Get your attendance for a specific month or year."""
     emp_id = config.get("configurable", {}).get("emp_id")
     if not emp_id:
-        return json.dumps({"error": "Employee ID not found in context."})
-    args = {"empId": emp_id, "month": month or 0, "year": year or 0}
+        return json.dumps({"error": "Student ID not found in context."})
+    args = {"studentId": emp_id, "month": month or 0, "year": year or 0}
     return _run("get_attendance", args)
 
 
 @tool
-def get_salary_payment(attendance_id: int):
-    """Fetch final in-hand salary based on attendance ID."""
-    return _run("get_salary_payment", {"attendanceId": attendance_id})
+def get_semester_results(semester: int):
+    """Fetch results/grades for a specific semester."""
+    return _run("get_semester_results", {"semester": semester})
 
 
 @tool
-def get_all_attendance_for_employee(config: RunnableConfig, year: Optional[int] = None):
+def get_all_attendance_for_student(config: RunnableConfig, year: Optional[int] = None):
     """Get all your attendance records across all months for a specific year."""
     emp_id = config.get("configurable", {}).get("emp_id")
     if not emp_id:
-        return json.dumps({"error": "Employee ID not found in context."})
-    args = {"empId": emp_id, "year": year or 0}
-    return _run("get_all_attendance_for_employee", args)
+        return json.dumps({"error": "Student ID not found in context."})
+    args = {"studentId": emp_id, "year": year or 0}
+    return _run("get_all_attendance_for_student", args)
 
 
 # ── Admin Tools ──────────────────────────────────────────────────────────────
 
 @tool
-def get_all_employees_data():
-    """Query basic details for all employees. ONLY allowed for ADMIN user."""
-    return _run("get_all_employees_data", {})
+def get_all_students_data():
+    """Query basic details for all students. ONLY allowed for ADMIN user."""
+    return _run("get_all_students_data", {})
 
 @tool
-def get_all_employees_salary_information():
-    """Admin tool to get comprehensive salary information for all employees. ONLY allowed for ADMIN user."""
-    return _run("get_all_employees_salary_information", {})
+def get_all_students_academic_information():
+    """Admin tool to get comprehensive academic information for all students. ONLY allowed for ADMIN user."""
+    return _run("get_all_students_academic_information", {})
 
 @tool
-def admin_get_monthly_metrics(month: Optional[int] = None, year: Optional[int] = None):
-    """Admin tool to get attendance and salary payments for all employees across a given month. ONLY allowed for ADMIN user."""
-    args = {"month": month or 0, "year": year or 0}
-    return _run("admin_get_monthly_metrics", args)
+def admin_get_semester_metrics(semester: Optional[int] = None, year: Optional[int] = None):
+    """Admin tool to get attendance and academic metrics for all students in a given semester. ONLY allowed for ADMIN user."""
+    args = {"semester": semester or 0, "year": year or 0}
+    return _run("admin_get_semester_metrics", args)

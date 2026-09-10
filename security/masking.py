@@ -1,29 +1,23 @@
 from .policy import MASKED_FIELDS
 
 
-def account_no_mask(account_no: str):
-
-    return  "****" + account_no[-4:]
+def mask_email(email: str):
+    parts = email.split("@")
+    if len(parts) == 2:
+        name = parts[0]
+        return name[:2] + "****@" + parts[1]
+    return "****"
 
 def mask_phone(phone: str):
-
     return phone[:2] + "******" + phone[-2:]
-
-def mask_account_no(account_no:str):
-
-    return "********" + account_no[-4:]
-
 
 
 def apply_masking(record: dict):
 
-    if "account_no" in record:
-        record["account_no"] = account_no_mask(record["account_no"])
+    if "email" in record:
+        record["email"] = mask_email(record["email"])
 
     if "phone" in record:
         record["phone"] = mask_phone(record["phone"])
-    
-    if "account_no" in record:
-        record["account_no"]=mask_account_no(record["account_no"])
 
     return record

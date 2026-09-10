@@ -69,9 +69,9 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
               <div className="flex h-8 w-8 items-center justify-center rounded-md">
                 <GalleryVerticalEnd className="size-6" />
               </div>
-              <span className="sr-only">PeopleStrong</span>
+              <span className="sr-only">NIT Jalandhar</span>
             </a>
-            <h1 className="text-xl font-bold">Welcome to PeopleStrong</h1>
+            <h1 className="text-xl font-bold">Welcome to NIT Jalandhar</h1>
             {/* <div className="text-center text-sm">
               Don&apos;t have an account?{" "}
               <a href="#" className="underline underline-offset-4">
@@ -86,8 +86,8 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="empno">Employee Number</Label>
-              <Input id="empno" name="empno" type="text" placeholder="12345" required />
+              <Label htmlFor="empno">Roll Number</Label>
+              <Input id="empno" name="empno" type="text" placeholder="21103001" required />
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
@@ -109,7 +109,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         </div>
       </form>
       <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
-        By clicking continue, you agree to our <a href="https://www.peoplestrong.com/id/terms-of-service-jinie/" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://www.peoplestrong.com/privacy-policy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+        By clicking continue, you agree to our <a href="https://www.nitj.ac.in" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://www.nitj.ac.in" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
       </div>
     </div>
   )

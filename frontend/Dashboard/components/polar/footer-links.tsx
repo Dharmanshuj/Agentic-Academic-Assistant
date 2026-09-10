@@ -18,7 +18,7 @@ export function FooterLinks() {
     <footer className="flex flex-col items-center justify-center gap-2 text-xs text-white/60">
       <div className="flex items-center gap-4">
         <Link 
-          href="https://www.peoplestrong.com/privacy-policy/" 
+          href="https://www.nitj.ac.in/privacy-policy/" 
           target="_blank" 
           rel="noopener noreferrer" 
           className="transition-colors hover:text-white"
@@ -27,7 +27,7 @@ export function FooterLinks() {
         </Link>
         <span className="text-white/30">•</span>
         <Link 
-          href="https://www.peoplestrong.com/id/terms-of-service-jinie/" 
+          href="https://www.nitj.ac.in/" 
           target="_blank" 
           rel="noopener noreferrer" 
           className="transition-colors hover:text-white"

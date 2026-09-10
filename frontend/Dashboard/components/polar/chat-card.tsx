@@ -235,7 +235,7 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
                   <div className="flex items-center gap-3 mb-1 ml-1">
                     <div className="flex items-center gap-2">
                       <SnowflakeIcon className="h-4 w-4 text-sky-400" />
-                      <span className="text-sm text-white">Pulse AI</span>
+                      <span className="text-sm text-white">NITJ Assistant</span>
                     </div>
                     {m.content && (
                       <button
@@ -305,15 +305,15 @@ export function ChatCard({ userName, isAdmin, onBackgroundChange, onResetBackgro
 }
  
 const DEFAULT_SUGGESTIONS = [
-  { id: "1", label: "What is my salary?" },
-  { id: "2", label: "Show my last payslip" },
-  { id: "3", label: "How much tax was deducted?" },
-  { id: "4", label: "Breakdown of allowances" },
+  { id: "1", label: "What is my CGPA?" },
+  { id: "2", label: "Show my attendance this semester" },
+  { id: "3", label: "What courses am I enrolled in?" },
+  { id: "4", label: "Show my semester results" },
 ]
  
 const ADMIN_SUGGESTIONS = [
-  { id: "1", label: "Show data for all employees" },
-  { id: "2", label: "What is the company leave policy?" },
-  { id: "3", label: "Average net pay for all employees" },
-  { id: "4", label: "Explain the handbook rules" },
+  { id: "1", label: "Show data for all students" },
+  { id: "2", label: "What is the academic calendar?" },
+  { id: "3", label: "Average CGPA of all students" },
+  { id: "4", label: "Attendance metrics this semester" },
 ]

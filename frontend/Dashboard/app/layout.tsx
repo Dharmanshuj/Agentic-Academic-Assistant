@@ -11,8 +11,12 @@ const plusJakartaSans = {
 
 export const metadata: Metadata = {
   title: "Pulse AI - AI Powered Chatbot",
-  description: "Your intelligent AI assistant",
-  generator: "PeopleStrong",
+  description: "Intelligent AI assistant for NIT Jalandhar students",
+  generator: "NITJ",
+  icons: {
+    icon: "/convertico-nitjlogo_32x32.png",
+    apple: "/convertico-nitjlogo_128x128.png",
+  },
 }
 
 export default function RootLayout({

@@ -1,29 +1,32 @@
 SENSITIVE_FIELDS = [
-    "empno",
+    "roll_no",
+    "student_id",
     "hashed_password",
 ]
 
 MASKED_FIELDS = [
     "email",
-    "account_no"
+    "phone",
 ]
 
 ALLOWED_COLUMNS = [
     "name",
-    "dept",
-    "designation",
-    "bank_name",
-    "account_no",
-    "basic_salary",
-    "hra",
-    "conveyance",
-    "medical",
-    "special",
-    "gross_salary",
-    "epf",
-    "health_insurance",
-    "professional_tax",
-    "total_deductions",
-    "tds",
-    "net_pay"
+    "department",
+    "program",
+    "semester",
+    "section",
+    "batch_year",
+    "admission_year",
+    "hostel_name",
+    "room_no",
+    "cgpa",
+    "sgpa",
+    "backlogs",
+    "academic_year",
+    "subjects",
+    "grade",
+    "attendance_percentage",
+    "enrolled_courses",
+    "guardian_name",
+    "guardian_phone",
 ]

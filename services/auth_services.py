@@ -15,7 +15,7 @@ def verify_password(plain_password, hashed_password):
 def create_access_token(empno: str, username: str):
     expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
     expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=expire_minutes)
-    role = "ADMIN" if empno == "ADMIN" else "EMPLOYEE"
+    role = "ADMIN" if empno == "ADMIN" else "STUDENT"
     payload = {
         "sub": username,
         "name": username,
