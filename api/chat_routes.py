@@ -1,6 +1,8 @@
 from database.db import get_connection
 from dotenv import load_dotenv
 load_dotenv()
+import hmac
+import os
 import uuid
 from fastapi import FastAPI, Depends, HTTPException, APIRouter
 from fastapi.responses import StreamingResponse
@@ -30,8 +32,14 @@ def get_routes():
 @router.post("/login")
 # Change the argument to use OAuth2PasswordRequestForm
 async def login(credentials: OAuth2PasswordRequestForm = Depends()):
-    # Hardcoded ADMIN login
-    if credentials.username == "ADMIN" and credentials.password == "admin123":
+    admin_username = os.getenv("ADMIN_USERNAME")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    if (
+        admin_username
+        and admin_password
+        and hmac.compare_digest(credentials.username, admin_username)
+        and hmac.compare_digest(credentials.password, admin_password)
+    ):
         token = create_access_token("ADMIN", "Administrator")
         return {"access_token": token, "token_type": "bearer"}
 

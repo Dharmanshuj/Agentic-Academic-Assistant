@@ -1,3 +1,5 @@
+import path from "node:path"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -9,6 +11,9 @@ const nextConfig = {
   devIndicators: {
     appIsrStatus: false,
     buildActivity: false,
+  },
+  turbopack: {
+    root: path.resolve(process.cwd()),
   },
 }
 

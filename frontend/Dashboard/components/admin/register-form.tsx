@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function RegisterEmployeeForm() {
+  const springApiUrl = process.env.NEXT_PUBLIC_SPRING_API_URL || "http://localhost:8080";
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const [workLocation, setWorkLocation] = useState("");
@@ -51,7 +52,7 @@ export function RegisterEmployeeForm() {
         throw new Error("Admin session not found. Please log in again.");
       }
 
-      const response = await fetch("http://localhost:8080/api/employees/register", {
+      const response = await fetch(`${springApiUrl}/api/employees/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
