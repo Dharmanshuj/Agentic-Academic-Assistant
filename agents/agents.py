@@ -205,6 +205,8 @@ async def admin_logic(state: AgentState, config: RunnableConfig):
     ]
 
     result = await agent.ainvoke({"messages": messages}, config)
+    for m in result["messages"]:
+        print(f"[admin_logic debug] {type(m).__name__}: tool_calls={getattr(m, 'tool_calls', None)} content={m.content!r}")
     final_message = result["messages"][-1]
     answer = final_message.content if final_message.content else "I'm sorry, the admin query returned no text response."
 
