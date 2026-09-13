@@ -46,7 +46,13 @@ async def _call_mcp_tool(name: str, args: dict) -> str:
     except asyncio.TimeoutError:
         return json.dumps({"error": f"MCP tool call timed out ({MCP_OPERATION_TIMEOUT_SECONDS}s). Is Spring Boot running?"})
     except Exception as e:
-        return json.dumps({"error": f"MCP tool call failed: {str(e)}"})
+        sub_exceptions = getattr(e, "exceptions", None)
+        if sub_exceptions:
+            causes = [f"{type(sub).__name__}: {sub}" for sub in sub_exceptions]
+        else:
+            causes = [f"{type(e).__name__}: {e}"]
+        print(f"[mcp_tool debug] SPRING_MCP_URL={SPRING_MCP_URL!r} causes={causes}")
+        return json.dumps({"error": f"MCP tool call failed: {'; '.join(causes)}"})
 
 
 def _run_in_thread(name: str, args: dict) -> str:
