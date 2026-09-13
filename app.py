@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.chat_routes import router as chat_router
+import os
 
 app = FastAPI()
 
@@ -11,6 +12,13 @@ origins = [
     "http://localhost:5174",
     "http://localhost:3000"
 ]
+# Comma-separated deployed frontend origins, for example:
+# FRONTEND_ORIGINS=https://your-dashboard.onrender.com
+origins.extend(
+    origin.strip()
+    for origin in os.getenv("FRONTEND_ORIGINS", "").split(",")
+    if origin.strip()
+)
 
 # 2. Add the Middleware
 app.add_middleware(

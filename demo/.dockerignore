@@ -1,0 +1,6 @@
+.git
+.github
+.idea
+target
+.env
+src/main/resources/.env

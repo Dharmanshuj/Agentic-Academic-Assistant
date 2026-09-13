@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.venv
+__pycache__
+*.py[cod]
+.env
+*.log
+frontend/Dashboard/node_modules
+frontend/Dashboard/.next
+demo/target
+demo/.idea
+documents
+logs
