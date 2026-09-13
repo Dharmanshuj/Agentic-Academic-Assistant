@@ -17,7 +17,7 @@ from langchain_core.runnables.config import RunnableConfig
 
 
 # ── Spring Boot MCP Server URL ───────────────────────────────────────────────
-SPRING_MCP_URL = os.getenv("SPRING_MCP_URL", "http://localhost:8080/mcp")
+SPRING_MCP_URL = os.getenv("SPRING_MCP_URL", "http://localhost:8080/mcp").strip()
 MCP_OPERATION_TIMEOUT_SECONDS = int(os.getenv("MCP_OPERATION_TIMEOUT_SECONDS", "20"))
 MCP_THREAD_TIMEOUT_SECONDS = int(os.getenv("MCP_THREAD_TIMEOUT_SECONDS", "25"))
 
@@ -36,7 +36,7 @@ async def _call_mcp_tool(name: str, args: dict) -> str:
     """Connect to Spring Boot MCP server, call a tool, return the text result."""
     try:
         async with asyncio.timeout(MCP_OPERATION_TIMEOUT_SECONDS):
-            async with streamable_http_client(SPRING_MCP_URL) as (read, write, _get_session_id):
+            async with streamable_http_client(SPRING_MCP_URL) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.call_tool(name, args)
