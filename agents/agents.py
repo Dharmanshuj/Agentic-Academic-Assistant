@@ -87,6 +87,7 @@ Respond with ONLY the exact category name. No quotes, no extra text.
 """
     response = await _base_llm.ainvoke([HumanMessage(content=prompt)])
     route = response.content.strip().strip('"').strip("'").lower()
+    print(f"[supervisor debug] emp_id={state['emp_id']!r} query={state['query']!r} raw_llm_route={response.content!r} history={history_text!r}")
 
     valid_routes = ["academics_node", "admin_node", "student_node"]
     if route in valid_routes:
