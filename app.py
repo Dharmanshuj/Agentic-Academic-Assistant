@@ -31,3 +31,8 @@ app.add_middleware(
 
 # 3. Include Routers AFTER middleware
 app.include_router(chat_router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
